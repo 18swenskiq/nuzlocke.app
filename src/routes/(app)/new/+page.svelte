@@ -35,20 +35,21 @@
     window.location = '/game'
   }
 
+  import { generateRoute } from '$lib/services/routeGenerator'
+
   const handleGenGame = () => {
     if (!selectedGame?.supported)
       return alert(`Sorry, ${selectedGame?.title} is currently not supported`)
 
-    fetch(`/api/route/generate/${selectedGame?.pid}.json`)
-      .then((res) => res.text())
-      .then((res) => {
-        let createid = selected
-        if (selectedGame?.difficulty)
-          createid += difficultyOptions?.[difficulty]?.id || ''
+    const result = generateRoute(selectedGame?.pid)
+    if (result) {
+      let createid = selected
+      if (selectedGame?.difficulty)
+        createid += difficultyOptions?.[difficulty]?.id || ''
 
-        savedGames.update(createGame(gameName, createid, res))
-        window.location = '/game'
-      })
+      savedGames.update(createGame(gameName, createid, JSON.stringify(result)))
+      window.location = '/game'
+    }
   }
 
   let hoverActive = false

@@ -12,14 +12,9 @@
     import('$lib/components/Analysis/index.svelte').then(m => Modal = m.default)
   })
 
-  const fetchanalysis = (box) =>
-    fetch('/api/box/analysis.json', {
-      method: 'POST',
-      body: JSON.stringify({ box }),
-      headers: {
-        'Content-Type': 'application/json',
-      }
-    }).then(res => res.json())
+  import { analyseBox } from '$lib/services/boxAnalysis'
+
+  const fetchanalysis = (box) => analyseBox(box)
 
   const { open } = getContext('simple-modal')
   const onopen = async _ => {

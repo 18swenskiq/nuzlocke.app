@@ -1,5 +1,5 @@
 import Clean from 'clean-css';
-import items from 'pokemon-assets/assets/css/items.css';
+import items from 'pokemon-assets/assets/css/items.css?inline';
 
 const clean = new Clean();
 const minifiedItems = clean.minify(items).styles;

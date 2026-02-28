@@ -83,29 +83,29 @@ export const getGameStore = (id) => {
 
 export const createGame =
   (name, game, initData = '{}') =>
-  (payload) => {
-    if (!browser) return
+    (payload) => {
+      if (!browser) return
 
-    const id = uuid()
-    const games =
-      payload === 'null' || payload === null || payload === 'undefined'
-        ? []
-        : payload.split(',').filter((i) => i.length)
+      const id = uuid()
+      const games =
+        payload === 'null' || payload === null || payload === 'undefined'
+          ? []
+          : payload.split(',').filter((i) => i.length)
 
-    const gameData = format({
-      id,
-      created: +new Date(),
-      name,
-      game,
-      settings: settingsDefault
-    })
+      const gameData = format({
+        id,
+        created: +new Date(),
+        name,
+        game,
+        settings: settingsDefault
+      })
 
-    localStorage.setItem(IDS.game(id), initData)
-    activeGame.set(id)
+      localStorage.setItem(IDS.game(id), initData)
+      activeGame.set(id)
 
-    console.log(`Creating new game for ${name} ${game}`)
-    return games.concat(gameData).join(',')
-  }
+      console.log(`Creating new game for ${name} ${game}`)
+      return games.concat(gameData).join(',')
+    }
 
 export const updateGame = (game) => (payload) => {
   if (!browser) return
@@ -187,7 +187,7 @@ export const readBox = (data) => {
     })
 }
 
-export const getBox = (cb = () => {}) =>
+export const getBox = (cb = () => { }) =>
   activeGame.subscribe((gameId) => {
     if (browser && !gameId) return (window.location = '/')
 
@@ -229,7 +229,7 @@ export const patchlocation = (payload) => (data) =>
 
 /** Team handlers */
 // FIXME: Teams a list of box indexes rather than pokemon indexs
-export const getTeams = (cb = () => {}) =>
+export const getTeams = (cb = () => { }) =>
   activeGame.subscribe((gameId) => {
     getGameStore(gameId).subscribe(
       read((data) => {
@@ -275,9 +275,9 @@ const _parse = (gameData) =>
     }, {})
 
 export const parse =
-  (cb = () => {}) =>
-  (gameData) =>
-    cb(_parse(gameData))
+  (cb = () => { }) =>
+    (gameData) =>
+      cb(_parse(gameData))
 
 export const format = (saveData) =>
   [
@@ -292,149 +292,21 @@ export const format = (saveData) =>
   ].join('|')
 
 export const summarise =
-  (cb = (_) => {}) =>
-  ({ __starter, __custom, __team = [], __teams, ...data }) => {
-    const pkmn = Object.values(data)
-    cb({
-      available: pkmn.filter(
-        (i) => i?.pokemon && NuzlockeGroups.Available.includes(i?.status)
-      ),
-      deceased: pkmn.filter(
-        (i) => i?.pokemon && NuzlockeGroups.Dead.includes(i?.status)
-      ),
-      team: __team.map((id) => data?.[id]?.pokemon).filter((i) => i)
-    })
-  }
-
-// ---- Temporary BiqQuery syncing track call
-export const trackData = () => {
-  if (!browser) return
-  const userId = window.localStorage.getItem(IDS.user)
-  const games = _parse(window.localStorage.getItem(IDS.saves))
-
-  const gamesData = {
-    user_id: userId,
-    data: Object.values(games).map(({ created, updated, ...data }) => ({
-      ...data,
-      ...(updated ? { updated_at: updated } : {}),
-      created_at: created
-    }))
-  }
-
-  const savesData = Object.keys(games).reduce((acc, id) => {
-    try {
-      const data = Object.values(
-        JSON.parse(window.localStorage.getItem(IDS.game(id)))
-      ).filter(
-        (d) =>
-          typeof d === 'object' &&
-          !d?.hidden &&
-          (d?.status || d?.pokemon) &&
-          Object.keys(d).length > 1
-      )
-
-      if (!Array.isArray(data) || !data.length) return acc
-      return [
-        ...acc,
-        {
-          user_id: userId,
-          game_id: id,
-          data
-        }
-      ]
-    } catch (e) {
-      return acc
-    }
-  }, [])
-
-  const bossData = Object.keys(games).reduce((acc, id) => {
-    try {
-      const data = JSON.parse(window.localStorage.getItem(IDS.game(id)))
-      const bossTeams = data?.__teams || []
-
-      const result = bossTeams.map((bossFight) => {
-        return {
-          boss_id: bossFight.id,
-          boss_name: bossFight.name,
-          boss_speciality: bossFight.type,
-          boss_type: bossFight.group,
-          team: bossFight.team.map((poke, i) => {
-            return {
-              position: i + 1,
-              pokemon: poke.sprite,
-              location: poke.id
-            }
-          })
-        }
-      })
-
-      return [
-        ...acc,
-        {
-          user_id: userId,
-          game_id: id,
-          data: result
-        }
-      ]
-    } catch (e) {
-      console.error(e)
-      return acc
-    }
-  }, [])
-
-  const teamsData = Object.keys(games).reduce((acc, id) => {
-    try {
-      const data = JSON.parse(window.localStorage.getItem(IDS.game(id)))
-      const team = data?.__team || []
-
-      if (!Array.isArray(team) || !team.length) return acc
-
-      const result = team
-        .map((locId, i) => {
-          const poke = data[locId]
-          if (!poke) return
-          return {
-            position: i + 1,
-            pokemon: poke.pokemon,
-            location: locId
-          }
-        })
-        .filter((i) => i)
-
-      if (!result.length) return acc
-
-      return [
-        ...acc,
-        {
-          user_id: userId,
-          game_id: id,
-          data: result
-        }
-      ]
-    } catch (e) {
-      console.error(e)
-      return acc
-    }
-  }, [])
-
-  document.addEventListener('visibilitychange', function logData() {
-    if (document.visibilityState === 'hidden') {
-      const createBlob = (json) =>
-        new Blob([JSON.stringify(json)], { type: 'application/json' })
-      navigator.sendBeacon('/api/store/game', createBlob(gamesData))
-      savesData.forEach((save) =>
-        navigator.sendBeacon('/api/store/save', createBlob(save))
-      )
-      teamsData.forEach((save) =>
-        navigator.sendBeacon('/api/store/team', createBlob(save))
-      )
-      bossData.forEach((save) => {
-        navigator.sendBeacon('/api/store/boss', createBlob(save))
+  (cb = (_) => { }) =>
+    ({ __starter, __custom, __team = [], __teams, ...data }) => {
+      const pkmn = Object.values(data)
+      cb({
+        available: pkmn.filter(
+          (i) => i?.pokemon && NuzlockeGroups.Available.includes(i?.status)
+        ),
+        deceased: pkmn.filter(
+          (i) => i?.pokemon && NuzlockeGroups.Dead.includes(i?.status)
+        ),
+        team: __team.map((id) => data?.[id]?.pokemon).filter((i) => i)
       })
     }
-  })
-}
-// --------
+
+// BigQuery tracking removed (store endpoint no longer exists)
 
 if (typeof window !== 'undefined')
   window.nz = {

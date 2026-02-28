@@ -10,13 +10,11 @@
     settings = settingsDefault
 
   import { fade } from 'svelte/transition'
-  import { onMount, getContext } from 'svelte'
   import {
     activeGame,
     deleteGame,
     getGame,
     read,
-    readdata,
     summarise,
     IDS
   } from '$lib/store'
@@ -25,13 +23,6 @@
   import { NuzlockeStates } from '$lib/data/states'
   import { Bin, Download, Share } from '$icons'
   import { Icon, PIcon, IconButton, Logo as Picture } from '$c/core'
-
-  let ShareModal
-  onMount((_) => {
-    import('$lib/components/qr/ShareModal.svelte').then(
-      (mod) => (ShareModal = mod.default)
-    )
-  })
 
   let team, available, deceased
   getGame(id).subscribe(
@@ -71,9 +62,6 @@
     downloadAnchor.setAttribute('href', 'data:' + data)
     downloadAnchor.setAttribute('download', `Nuzlocke Tracker - ${name}.nzsav`)
   }
-
-  const { open } = getContext('simple-modal')
-  const onshare = (_) => open(ShareModal, { id })
 
   $: date = day(+created).format('Do of MMMM')
   $: last = updated > created ? day(+updated).format('Do of MMMM') : null
@@ -174,8 +162,8 @@
       rounded
       color="yellow"
       src={Share}
-      title="Transfer save"
-      on:click={onshare}
+      title="This feature is temporarily disabled"
+      disabled
     />
   </div>
 </div>

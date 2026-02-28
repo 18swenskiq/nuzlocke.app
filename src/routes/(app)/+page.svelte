@@ -7,7 +7,7 @@
   import { fly } from 'svelte/transition'
   import { onMount } from 'svelte'
 
-  import { readdata, summarise, trackData } from '$lib/store'
+  import { readdata, summarise } from '$lib/store'
   import { PixelatedContainer } from '$lib/components/containers'
 
   import { Expanded as Games } from '$lib/data/games'
@@ -54,7 +54,6 @@
       ]
     }
 
-    trackData()
   })
 
   let src

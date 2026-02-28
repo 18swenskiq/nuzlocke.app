@@ -1,9 +1,9 @@
 import Clean from 'clean-css'
 
-import badges from './_badges.css'
-import blazingem from './_pokemon-blazingem.css'
-import radicalred from './_pokemon-radicalred.css'
-import pokemon from './_pokemon.css'
+import badges from './_badges.css?inline'
+import blazingem from './_pokemon-blazingem.css?inline'
+import radicalred from './_pokemon-radicalred.css?inline'
+import pokemon from './_pokemon.css?inline'
 
 const clean = new Clean({ level: 2 })
 const resourceMap = {

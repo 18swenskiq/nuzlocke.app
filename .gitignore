@@ -2,8 +2,7 @@
 node_modules
 /.svelte-kit
 /package
-.vercel_build_output
-.vercel
+/dist
 stats.html
 masters
 scripts

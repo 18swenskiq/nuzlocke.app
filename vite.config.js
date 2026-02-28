@@ -15,7 +15,8 @@ const config = {
       $utils: path.resolve('./src/lib/utils'),
       $data: path.resolve('./src/lib/data'),
       $store: path.resolve('./src/lib/store.js'),
-      $icons: path.resolve('./src/lib/components/icons/IconSet.ts')
+      $icons: path.resolve('./src/lib/components/icons/IconSet.ts'),
+      'pokemon-assets': path.resolve('./thirdparty/pokemon-assets')
     }
   },
 
