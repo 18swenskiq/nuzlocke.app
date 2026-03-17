@@ -44,11 +44,6 @@ export async function GET({ params }) {
     patches[game?.patchId] || patches[params.game] || {}
 
   if (!game) return new Response('', { status: 404 })
-  if (!game.patched && !game.filter)
-    return new Response('', {
-      status: 301,
-      headers: { Location: '/api/pokemon.json' }
-    })
 
   let items = base
   if (game.filter?.types)

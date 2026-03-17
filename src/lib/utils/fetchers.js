@@ -5,10 +5,10 @@ import { DATA } from '$utils/rewrites'
 import { normalise } from '$utils/string'
 
 const safeJson = async (res, url) => {
+  const text = await res.text()
   try {
-    return await res.json()
+    return JSON.parse(text)
   } catch (e) {
-    const text = await res.text().catch(() => '(could not read body)')
     throw new Error(`Invalid JSON from ${url} (status ${res.status}): ${text.slice(0, 200)}`)
   }
 }
