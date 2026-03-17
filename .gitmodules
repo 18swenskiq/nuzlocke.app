@@ -1,3 +1,3 @@
 [submodule "thirdparty/pokemon-assets"]
-	path = thirdparty/pokemon-assets
+	path = frontend/thirdparty/pokemon-assets
 	url = https://github.com/hexparrot/pokemon-assets.git
