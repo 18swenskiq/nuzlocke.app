@@ -1,0 +1,328 @@
+on:
+  push:
+    branches:
+      - main
+
+defaults:
+  run:
+    working-directory: ./cdk
+
+jobs:
+  aws_cdk:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v2
+        with:
+          fetch-depth: 2
+
+      - name: Setup Node.js environment
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: 'npm'
+          cache-dependency-path: './cdk/package-lock.json'
+
+      - name: Install AWS CDK
+        run: npm i -g aws-cdk
+
+      - name: Install CDK dependencies
+        run: npm install
+
+      - name: Build Frontend
+        working-directory: .
+        run: |
+          npm install
+          npm run build
+
+      - name: Copy Frontend Build to CDK Assets
+        run: |
+          mkdir -p ./assets
+          cp -r ../dist/* ./assets/
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@master
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_KEY }}
+          aws-region: 'us-east-1'
+
+      - name: Bootstrap CDK
+        run: |
+          cdk bootstrap aws://$(aws sts get-caller-identity --query 'Account' --output text)/us-east-1
+
+      - name: Deploy Stack
+        timeout-minutes: 25
+        run: |
+          # Check if the stack already exists and is complete
+          STACK_STATUS=$(aws cloudformation describe-stacks --stack-name NuzlockeAppStack --query "Stacks[0].StackStatus" --output text 2>/dev/null || echo "DOES_NOT_EXIST")
+
+          echo "Current stack status: $STACK_STATUS"
+
+          if [ "$STACK_STATUS" = "CREATE_COMPLETE" ] || [ "$STACK_STATUS" = "UPDATE_COMPLETE" ] || [ "$STACK_STATUS" = "UPDATE_ROLLBACK_COMPLETE" ]; then
+            echo "Stack exists. Deploying update directly..."
+            cdk deploy NuzlockeAppStack --require-approval never
+            exit 0
+          elif [ "$STACK_STATUS" = "CREATE_IN_PROGRESS" ] || [ "$STACK_STATUS" = "UPDATE_IN_PROGRESS" ]; then
+            echo "Stack is currently in progress. Monitoring for completion..."
+
+            WAIT_TIME=0
+            MAX_WAIT=1200
+
+            while [ $WAIT_TIME -lt $MAX_WAIT ]; do
+              CURRENT_STATUS=$(aws cloudformation describe-stacks --stack-name NuzlockeAppStack --query "Stacks[0].StackStatus" --output text 2>/dev/null || echo "UNKNOWN")
+              echo "Stack status: $CURRENT_STATUS (waited ${WAIT_TIME}s)"
+
+              if [ "$CURRENT_STATUS" = "CREATE_COMPLETE" ] || [ "$CURRENT_STATUS" = "UPDATE_COMPLETE" ]; then
+                echo "Stack completed successfully!"
+                exit 0
+              elif [ "$CURRENT_STATUS" = "CREATE_FAILED" ] || [ "$CURRENT_STATUS" = "ROLLBACK_COMPLETE" ] || [ "$CURRENT_STATUS" = "UPDATE_FAILED" ] || [ "$CURRENT_STATUS" = "UPDATE_ROLLBACK_COMPLETE" ]; then
+                echo "Stack deployment failed with status: $CURRENT_STATUS"
+                exit 1
+              fi
+
+              sleep 30
+              WAIT_TIME=$((WAIT_TIME + 30))
+            done
+
+            echo "Timeout waiting for in-progress stack to complete"
+            exit 1
+          elif [ "$STACK_STATUS" = "CREATE_FAILED" ] || [ "$STACK_STATUS" = "ROLLBACK_COMPLETE" ]; then
+            echo "Stack is in failed state: $STACK_STATUS. Deleting and recreating..."
+            aws cloudformation delete-stack --stack-name NuzlockeAppStack
+            aws cloudformation wait stack-delete-complete --stack-name NuzlockeAppStack
+            echo "Stack deleted. Proceeding with new deployment..."
+          fi
+
+          echo "Starting deployment (certificate DNS validation may be required)..."
+
+          # Start CDK deploy in background to capture DNS validation details
+          cdk deploy NuzlockeAppStack --require-approval never > cdk_deploy.log 2>&1 &
+          CDK_PID=$!
+
+          echo "CDK deployment started with PID: $CDK_PID"
+
+          # Monitor the log file for DNS validation details
+          VALIDATION_FOUND=false
+          TIMEOUT=600
+          ELAPSED=0
+
+          while [ $ELAPSED -lt $TIMEOUT ] && [ "$VALIDATION_FOUND" = "false" ]; do
+            if [ -f cdk_deploy.log ]; then
+              # Check if deployment completed without needing validation
+              if grep -q "no changes" cdk_deploy.log; then
+                echo "Stack deployment completed with no changes"
+                wait $CDK_PID
+                exit 0
+              fi
+
+              # Check if deploy finished successfully
+              if grep -q "✅" cdk_deploy.log; then
+                echo "Stack deployment completed successfully"
+                wait $CDK_PID
+                exit 0
+              fi
+
+              if grep -q "Content of DNS Record is:" cdk_deploy.log; then
+                DNS_RECORD=$(grep "Content of DNS Record is:" cdk_deploy.log | tail -1)
+                echo "Found DNS validation record: $DNS_RECORD"
+
+                VALIDATION_NAME=$(echo "$DNS_RECORD" | sed -n 's/.*Name: \([^,]*\),.*/\1/p')
+                VALIDATION_VALUE=$(echo "$DNS_RECORD" | sed -n 's/.*Value: \([^}]*\)}.*/\1/p')
+
+                echo "Validation Name: $VALIDATION_NAME"
+                echo "Validation Value: $VALIDATION_VALUE"
+
+                if [ -n "$VALIDATION_NAME" ] && [ -n "$VALIDATION_VALUE" ]; then
+                  echo "VALIDATION_NAME=$VALIDATION_NAME" >> "$GITHUB_ENV"
+                  echo "VALIDATION_VALUE=$VALIDATION_VALUE" >> "$GITHUB_ENV"
+                  VALIDATION_FOUND=true
+                  break
+                fi
+              fi
+            fi
+
+            sleep 5
+            ELAPSED=$((ELAPSED + 5))
+            echo "Waiting for DNS validation record... ($ELAPSED/$TIMEOUT seconds)"
+          done
+
+          if [ "$VALIDATION_FOUND" = "false" ]; then
+            # Check if the deploy actually completed while we were waiting
+            if [ -f cdk_deploy.log ] && grep -q "✅" cdk_deploy.log; then
+              echo "Stack deployment completed successfully"
+              wait $CDK_PID
+              exit 0
+            fi
+            echo "Timeout waiting for DNS validation record"
+            kill $CDK_PID 2>/dev/null || true
+            cat cdk_deploy.log
+            exit 1
+          fi
+
+          echo "DNS validation record found, keeping CDK process running..."
+
+      - name: Create Cloudflare DNS Record for Certificate Validation
+        if: env.VALIDATION_NAME != '' && env.VALIDATION_VALUE != ''
+        run: |
+          ZONE_ID=$(curl -s -X GET "https://api.cloudflare.com/client/v4/zones?name=spkymnr.xyz" \
+            -H "Authorization: Bearer ${{ secrets.CLOUDFLARE_API_TOKEN }}" \
+            -H "Content-Type: application/json" | \
+            jq -r '.result[0].id')
+
+          echo "Zone ID: $ZONE_ID"
+
+          if [ "$ZONE_ID" = "null" ] || [ -z "$ZONE_ID" ]; then
+            echo "Failed to get Cloudflare zone ID for spkymnr.xyz"
+            exit 1
+          fi
+
+          # Extract just the subdomain part (remove the main domain)
+          RECORD_NAME=$(echo "$VALIDATION_NAME" | sed 's/\.spkymnr\.xyz\.$//')
+
+          echo "Creating DNS record: $RECORD_NAME with value: $VALIDATION_VALUE"
+
+          RECORD_RESPONSE=$(curl -s -X POST "https://api.cloudflare.com/client/v4/zones/$ZONE_ID/dns_records" \
+            -H "Authorization: Bearer ${{ secrets.CLOUDFLARE_API_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            --data "{
+              \"type\": \"CNAME\",
+              \"name\": \"$RECORD_NAME\",
+              \"content\": \"$VALIDATION_VALUE\",
+              \"ttl\": 120
+            }")
+
+          echo "Cloudflare API response: $RECORD_RESPONSE"
+
+          SUCCESS=$(echo "$RECORD_RESPONSE" | jq -r '.success')
+          if [ "$SUCCESS" = "true" ]; then
+            RECORD_ID=$(echo "$RECORD_RESPONSE" | jq -r '.result.id')
+            echo "DNS record created successfully with ID: $RECORD_ID"
+            echo "CLOUDFLARE_RECORD_ID=$RECORD_ID" >> "$GITHUB_ENV"
+          else
+            echo "Failed to create DNS record"
+            echo "$RECORD_RESPONSE" | jq -r '.errors[]'
+            exit 1
+          fi
+
+      - name: Complete Certificate Validation
+        if: env.CLOUDFLARE_RECORD_ID != ''
+        run: |
+          echo "Waiting for DNS propagation..."
+          sleep 120
+
+          echo "DNS should be propagated, waiting for stack deployment to complete..."
+
+          WAIT_TIME=0
+          MAX_WAIT=900
+
+          while [ $WAIT_TIME -lt $MAX_WAIT ]; do
+            STACK_STATUS=$(aws cloudformation describe-stacks --stack-name NuzlockeAppStack --query "Stacks[0].StackStatus" --output text 2>/dev/null || echo "UNKNOWN")
+
+            echo "Stack status: $STACK_STATUS (waited ${WAIT_TIME}s)"
+
+            if [ "$STACK_STATUS" = "CREATE_COMPLETE" ] || [ "$STACK_STATUS" = "UPDATE_COMPLETE" ]; then
+              echo "Stack deployment completed successfully!"
+              break
+            elif [ "$STACK_STATUS" = "CREATE_FAILED" ] || [ "$STACK_STATUS" = "ROLLBACK_COMPLETE" ]; then
+              echo "Stack deployment failed"
+              cat cdk_deploy.log || true
+              exit 1
+            fi
+
+            sleep 30
+            WAIT_TIME=$((WAIT_TIME + 30))
+          done
+
+          if [ $WAIT_TIME -ge $MAX_WAIT ]; then
+            echo "Timeout waiting for certificate validation"
+            cat cdk_deploy.log || true
+            exit 1
+          fi
+
+      - name: Clean up Cloudflare DNS Record
+        if: env.CLOUDFLARE_RECORD_ID != '' && (success() || failure())
+        run: |
+          ZONE_ID=$(curl -s -X GET "https://api.cloudflare.com/client/v4/zones?name=spkymnr.xyz" \
+            -H "Authorization: Bearer ${{ secrets.CLOUDFLARE_API_TOKEN }}" \
+            -H "Content-Type: application/json" | \
+            jq -r '.result[0].id')
+
+          echo "Cleaning up DNS record with ID: $CLOUDFLARE_RECORD_ID"
+          curl -s -X DELETE "https://api.cloudflare.com/client/v4/zones/$ZONE_ID/dns_records/$CLOUDFLARE_RECORD_ID" \
+            -H "Authorization: Bearer ${{ secrets.CLOUDFLARE_API_TOKEN }}" \
+            -H "Content-Type: application/json"
+
+          echo "DNS validation record cleaned up"
+
+      - name: Create Cloudflare CNAME for Website
+        run: |
+          # Get the CloudFront distribution domain name
+          CLOUDFRONT_DOMAIN=$(aws cloudformation describe-stacks --stack-name NuzlockeAppStack --query "Stacks[0].Outputs[?OutputKey=='DistributionDomainName'].OutputValue" --output text)
+          echo "CloudFront Domain: $CLOUDFRONT_DOMAIN"
+
+          if [ -z "$CLOUDFRONT_DOMAIN" ]; then
+            echo "Failed to get CloudFront domain name"
+            exit 1
+          fi
+
+          # Get the zone ID for spkymnr.xyz
+          ZONE_ID=$(curl -s -X GET "https://api.cloudflare.com/client/v4/zones?name=spkymnr.xyz" \
+            -H "Authorization: Bearer ${{ secrets.CLOUDFLARE_API_TOKEN }}" \
+            -H "Content-Type: application/json" | \
+            jq -r '.result[0].id')
+
+          echo "Zone ID: $ZONE_ID"
+
+          if [ "$ZONE_ID" = "null" ] || [ -z "$ZONE_ID" ]; then
+            echo "Failed to get Cloudflare zone ID for spkymnr.xyz"
+            exit 1
+          fi
+
+          # Check if the record already exists
+          EXISTING_RECORD=$(curl -s -X GET "https://api.cloudflare.com/client/v4/zones/$ZONE_ID/dns_records?name=nuzlocke.spkymnr.xyz&type=CNAME" \
+            -H "Authorization: Bearer ${{ secrets.CLOUDFLARE_API_TOKEN }}" \
+            -H "Content-Type: application/json")
+
+          RECORD_COUNT=$(echo "$EXISTING_RECORD" | jq -r '.result | length')
+
+          if [ "$RECORD_COUNT" -gt 0 ]; then
+            # Update existing record
+            RECORD_ID=$(echo "$EXISTING_RECORD" | jq -r '.result[0].id')
+            echo "Updating existing CNAME record with ID: $RECORD_ID"
+
+            RECORD_RESPONSE=$(curl -s -X PUT "https://api.cloudflare.com/client/v4/zones/$ZONE_ID/dns_records/$RECORD_ID" \
+              -H "Authorization: Bearer ${{ secrets.CLOUDFLARE_API_TOKEN }}" \
+              -H "Content-Type: application/json" \
+              --data "{
+                \"type\": \"CNAME\",
+                \"name\": \"nuzlocke\",
+                \"content\": \"$CLOUDFRONT_DOMAIN\",
+                \"ttl\": 300
+              }")
+          else
+            # Create new record
+            echo "Creating new CNAME record for nuzlocke.spkymnr.xyz"
+
+            RECORD_RESPONSE=$(curl -s -X POST "https://api.cloudflare.com/client/v4/zones/$ZONE_ID/dns_records" \
+              -H "Authorization: Bearer ${{ secrets.CLOUDFLARE_API_TOKEN }}" \
+              -H "Content-Type: application/json" \
+              --data "{
+                \"type\": \"CNAME\",
+                \"name\": \"nuzlocke\",
+                \"content\": \"$CLOUDFRONT_DOMAIN\",
+                \"ttl\": 300
+              }")
+          fi
+
+          echo "Cloudflare API response: $RECORD_RESPONSE"
+
+          SUCCESS=$(echo "$RECORD_RESPONSE" | jq -r '.success')
+          if [ "$SUCCESS" = "true" ]; then
+            echo "CNAME record for nuzlocke.spkymnr.xyz created/updated successfully"
+            echo "Your website should be available at: https://nuzlocke.spkymnr.xyz"
+          else
+            echo "Failed to create/update CNAME record"
+            echo "$RECORD_RESPONSE" | jq -r '.errors[]'
+            exit 1
+          fi
