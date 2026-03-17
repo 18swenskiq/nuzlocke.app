@@ -59,8 +59,15 @@
   let route
   const fetchRoute = async (gen) => {
     if (route) return route
-    const res = await fetch(`/api/route/${gen}.json`)
-    route = await res.json()
+    const url = `/api/route/${gen}.json`
+    const res = await fetch(url)
+    if (!res.ok) throw new Error(`Failed to fetch route data for gen "${gen}": ${res.status} ${res.statusText}`)
+    try {
+      route = await res.json()
+    } catch (e) {
+      const text = await res.text().catch(() => '(could not read body)')
+      throw new Error(`Invalid JSON from ${url} (status ${res.status}): ${text.slice(0, 200)}`)
+    }
     return route
   }
 
@@ -82,26 +89,46 @@
     deferStyles(`/assets/items/${gameKey}.css`)
   })
 
+  let setupError = null
+
   const setup = () =>
-    new Promise((resolve) => {
-      console.time('setup')
-      const [, key, id] = readdata()
-      if (browser && !id) return (window.location = '/')
+    new Promise((resolve, reject) => {
+      try {
+        console.time('setup')
+        const [, key, id] = readdata()
+        if (browser && !id) return (window.location = '/')
 
-      gameStore = getGameStore(id)
-      gameKey = key
+        if (!key || !Games[key]) {
+          throw new Error(`Unknown game key: "${key}". Active game ID: "${id}". This may indicate corrupted save data.`)
+        }
 
-      fetchRoute(Games[key].pid).then((r) => {
-        console.timeEnd('setup')
-        resolve(r)
-      })
+        gameStore = getGameStore(id)
+        gameKey = key
 
-      gameStore.subscribe(
-        read((game) => {
-          console.timeLog('setup')
-          gameData = game
+        let setupFinished = false
+
+        fetchRoute(Games[key].pid).then((r) => {
+          setupFinished = true
+          console.timeEnd('setup')
+          resolve(r)
+        }).catch((err) => {
+          setupFinished = true
+          console.error('[setup] fetchRoute failed:', err)
+          reject(err)
         })
-      )
+
+        gameStore.subscribe(
+          read((game) => {
+            if (!setupFinished) {
+              try { console.timeLog('setup') } catch (_) { /* timer may have ended */ }
+            }
+            gameData = game
+          })
+        )
+      } catch (err) {
+        console.error('[setup] Error during game setup:', err)
+        reject(err)
+      }
     })
 
   const _onsearch = (e) => (search = e.detail.search)
@@ -219,6 +246,21 @@
           progress={latestnav(route, gameData).id}
         />
       </main>
+    </div>
+  </div>
+{:catch error}
+  <div class="container mx-auto flex flex-col items-center justify-center px-4 pt-24 pb-24 text-center">
+    <h2 class="mb-4 text-2xl font-bold text-red-500">Failed to load game</h2>
+    <p class="mb-4 max-w-md text-gray-700 dark:text-gray-400">{error?.message || 'An unknown error occurred while loading game data.'}</p>
+    {#if error?.stack}
+      <details class="mb-4 w-full max-w-lg text-left">
+        <summary class="cursor-pointer text-sm text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">Technical Details</summary>
+        <pre class="mt-2 overflow-x-auto rounded bg-gray-100 p-3 text-xs text-gray-800 dark:bg-gray-800 dark:text-gray-300">{error.stack}</pre>
+      </details>
+    {/if}
+    <div class="flex gap-4">
+      <a href="/" class="rounded bg-blue-500 px-4 py-2 text-white hover:bg-blue-600">Go Home</a>
+      <button on:click={() => window.location.reload()} class="rounded bg-gray-200 px-4 py-2 text-gray-800 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-200 dark:hover:bg-gray-600">Retry</button>
     </div>
   </div>
 {/await}

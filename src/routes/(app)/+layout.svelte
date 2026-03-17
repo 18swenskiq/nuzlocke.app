@@ -28,12 +28,21 @@
   })
 
   setContext('game', {
-    getLeague: fetchLeague,
-    getAllPkmn: () => fetchData().then((res) => Object.values(res.aliasMap)),
+    getLeague: (...args) => fetchLeague(...args).catch(err => {
+      console.error('[getLeague]', err)
+      return []
+    }),
+    getAllPkmn: () => fetchData().then((res) => Object.values(res.aliasMap)).catch(err => {
+      console.error('[getAllPkmn]', err)
+      return []
+    }),
     getPkmn: (id) =>
       fetchData().then((p = {}) => {
         const nid = normalise(id)
         return p.idMap[nid] || p.aliasMap[nid] || p.nameMap[nid]
+      }).catch(err => {
+        console.error('[getPkmn]', id, err)
+        return undefined
       }),
     getPkmns: (ids = []) =>
       fetchData().then((p = {}) => {
@@ -51,6 +60,9 @@
           result[res.alias] = res
         }
         return result
+      }).catch(err => {
+        console.error('[getPkmns]', err)
+        return {}
       })
   })
 

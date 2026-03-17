@@ -85,6 +85,18 @@
           >.
         {/if}
       </p>
+
+      {#if $page.status !== 404 && ($page.error.message || $page.error.stack)}
+        <details class="mx-auto mt-4 w-full max-w-sm translate-y-56 text-left font-sans sm:max-w-md">
+          <summary class="cursor-pointer text-sm text-gray-500 hover:text-gray-700 dark:text-gray-400 dark:hover:text-gray-300">Technical Details</summary>
+          <div class="mt-2 rounded bg-gray-100 p-3 dark:bg-gray-800">
+            <p class="text-sm font-medium text-gray-800 dark:text-gray-300">{$page.error.message}</p>
+            {#if $page.error.stack}
+              <pre class="mt-2 overflow-x-auto text-xs text-gray-600 dark:text-gray-400">{$page.error.stack}</pre>
+            {/if}
+          </div>
+        </details>
+      {/if}
     </span>
   </span>
   <img

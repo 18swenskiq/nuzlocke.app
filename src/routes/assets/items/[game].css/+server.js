@@ -23,10 +23,10 @@ export async function GET({ params }) {
 
   const gameData = games[game];
   const patchData = patches[gameData?.patchId] || patches[game];
-  if (!gameData) return new Response({ status: 404 });
+  if (!gameData) return new Response(null, { status: 404 });
 
   const league = leagues[gameData.lid] || leagues[gameData.pid];
-  if (!league) return new Response({ status: 404 });
+  if (!league) return new Response(null, { status: 404 });
 
   const all = Object.values(league).reduce(
     (acc, it) => acc.concat(it.pokemon),

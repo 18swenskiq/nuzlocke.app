@@ -4,6 +4,15 @@ import { getGen } from '$store'
 import { DATA } from '$utils/rewrites'
 import { normalise } from '$utils/string'
 
+const safeJson = async (res, url) => {
+  try {
+    return await res.json()
+  } catch (e) {
+    const text = await res.text().catch(() => '(could not read body)')
+    throw new Error(`Invalid JSON from ${url} (status ${res.status}): ${text.slice(0, 200)}`)
+  }
+}
+
 const data = {}
 export const fetchData = async () => {
   if (!browser) return
@@ -16,7 +25,10 @@ export const fetchData = async () => {
   if (!data[uri]) {
     console.time(`data:${gen}`)
     data[uri] = fetch(uri) // "Cache" the promise rather than make a new fetch each time
-      .then((res) => res.json())
+      .then((res) => {
+        if (!res.ok) throw new Error(`Failed to fetch pokemon data for gen "${gen}": ${res.status} ${res.statusText}`)
+        return safeJson(res, uri)
+      })
       .then((data) => {
         console.timeLog(`data:${gen}`)
         let result = { idMap: {}, aliasMap: {}, nameMap: {} }
@@ -42,7 +54,10 @@ export const fetchLeague = async (game, starter = 'fire') => {
   const uri = `${DATA}/league/${game}.${starter}.json`
 
   if (league[id]) return league[id]
-  if (!league[uri]) league[uri] = fetch(uri).then((res) => res.json())
+  if (!league[uri]) league[uri] = fetch(uri).then((res) => {
+    if (!res.ok) throw new Error(`Failed to fetch league data for "${game}" (starter: ${starter}): ${res.status} ${res.statusText}`)
+    return safeJson(res, uri)
+  })
 
   console.time(`league:${id}`)
   league[id] = await league[uri]
@@ -56,7 +71,10 @@ export const fetchRoute = async (game) => {
 
   const uri = `/api/route/${game}.json`
   if (route[game]) return route[game]
-  if (!route[uri]) route[uri] = fetch(uri).then((res) => res.json())
+  if (!route[uri]) route[uri] = fetch(uri).then((res) => {
+    if (!res.ok) throw new Error(`Failed to fetch route data for "${game}": ${res.status} ${res.statusText}`)
+    return safeJson(res, uri)
+  })
 
   console.time(`route:${game}`)
   route[game] = await route[uri]
@@ -70,7 +88,10 @@ export const fetchTrainers = async (game) => {
 
   const uri = `/api/${game}/trainers.json`
   if (trainers[game]) return trainers[game]
-  if (!trainers[uri]) trainers[uri] = fetch(uri).then((res) => res.json())
+  if (!trainers[uri]) trainers[uri] = fetch(uri).then((res) => {
+    if (!res.ok) throw new Error(`Failed to fetch trainer data for "${game}": ${res.status} ${res.statusText}`)
+    return safeJson(res, uri)
+  })
 
   console.time(`trainres:${game}`)
   trainers[game] = await trainers[uri]
