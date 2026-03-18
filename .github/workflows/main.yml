@@ -93,9 +93,22 @@ jobs:
 
             echo "Timeout waiting for in-progress stack to complete"
             exit 1
-          elif [ "$STACK_STATUS" = "CREATE_FAILED" ] || [ "$STACK_STATUS" = "ROLLBACK_COMPLETE" ]; then
+          elif [ "$STACK_STATUS" = "CREATE_FAILED" ] || [ "$STACK_STATUS" = "ROLLBACK_COMPLETE" ] || [ "$STACK_STATUS" = "ROLLBACK_FAILED" ] || [ "$STACK_STATUS" = "DELETE_FAILED" ]; then
             echo "Stack is in failed state: $STACK_STATUS. Deleting and recreating..."
-            aws cloudformation delete-stack --stack-name NuzlockeAppStack
+
+            # Get resources that failed to delete (if any) and retain them to unblock deletion
+            FAILED_RESOURCES=$(aws cloudformation describe-stack-resources --stack-name NuzlockeAppStack --query "StackResources[?ResourceStatus=='DELETE_FAILED'].LogicalResourceId" --output text 2>/dev/null || echo "")
+            if [ -n "$FAILED_RESOURCES" ]; then
+              echo "Retaining failed resources to unblock deletion: $FAILED_RESOURCES"
+              RETAIN_ARGS=""
+              for res in $FAILED_RESOURCES; do
+                RETAIN_ARGS="$RETAIN_ARGS $res"
+              done
+              aws cloudformation delete-stack --stack-name NuzlockeAppStack --retain-resources $RETAIN_ARGS
+            else
+              aws cloudformation delete-stack --stack-name NuzlockeAppStack
+            fi
+
             aws cloudformation wait stack-delete-complete --stack-name NuzlockeAppStack
             echo "Stack deleted. Proceeding with new deployment..."
           fi
