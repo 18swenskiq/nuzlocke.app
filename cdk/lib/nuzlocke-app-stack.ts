@@ -45,6 +45,26 @@ export class NuzlockeAppStack extends cdk.Stack {
       principals: [new iam.ServicePrincipal('logging.s3.amazonaws.com')],
     }));
 
+    // CloudFront Function to rewrite URLs for SPA/static site routing
+    // e.g. /new → /new/index.html so S3 can find the pre-rendered page
+    const urlRewriteFunction = new cloudfront.Function(this, 'UrlRewriteFunction', {
+      code: cloudfront.FunctionCode.fromInline(`
+        function handler(event) {
+          var request = event.request;
+          var uri = request.uri;
+          if (uri === '/') {
+            request.uri = '/index.html';
+          } else if (uri.endsWith('/')) {
+            request.uri = uri.slice(0, -1) + '.html';
+          } else if (!uri.includes('.')) {
+            request.uri += '.html';
+          }
+          return request;
+        }
+      `),
+      runtime: cloudfront.FunctionRuntime.JS_2_0,
+    });
+
     // CloudFront distribution
     const distribution = new cloudfront.Distribution(this, 'Distribution', {
       defaultBehavior: {
@@ -53,6 +73,10 @@ export class NuzlockeAppStack extends cdk.Stack {
         allowedMethods: cloudfront.AllowedMethods.ALLOW_GET_HEAD,
         cachedMethods: cloudfront.CachedMethods.CACHE_GET_HEAD,
         compress: true,
+        functionAssociations: [{
+          function: urlRewriteFunction,
+          eventType: cloudfront.FunctionEventType.VIEWER_REQUEST,
+        }],
       },
       domainNames: ['nuzlocke.spkymnr.xyz'],
       certificate: certificate,
