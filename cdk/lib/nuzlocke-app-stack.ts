@@ -77,12 +77,19 @@ export class NuzlockeAppStack extends cdk.Stack {
     // Deploy website assets to S3 (assets are copied into ./assets by the CI pipeline)
     const assetsPath = path.join(__dirname, '../assets');
     if (fs.existsSync(assetsPath)) {
-      new s3deploy.BucketDeployment(this, 'DeployWebsite', {
+      const deployment = new s3deploy.BucketDeployment(this, 'DeployWebsite', {
         sources: [s3deploy.Source.asset(assetsPath)],
         destinationBucket: websiteBucket,
         distribution,
         distributionPaths: ['/*'],
+        memoryLimit: 512,
       });
+
+      // CDK doesn't always auto-grant CloudFront invalidation permissions
+      deployment.handlerRole.addToPrincipalPolicy(new iam.PolicyStatement({
+        actions: ['cloudfront:CreateInvalidation', 'cloudfront:GetInvalidation'],
+        resources: [`arn:aws:cloudfront::${this.account}:distribution/${distribution.distributionId}`],
+      }));
     } else {
       console.log('Assets directory not found at:', assetsPath);
       console.log('Skipping frontend deployment - bucket created without content');
