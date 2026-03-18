@@ -13,7 +13,14 @@ export default {
       relative: true
     },
     prerender: {
-      handleHttpError: 'warn'
+      handleHttpError: 'warn',
+      entries: [
+        '*',
+        '/assets/pokemon.css',
+        '/assets/pokemon-blazingem.css',
+        '/assets/pokemon-radicalred.css',
+        '/assets/badges.css'
+      ]
     }
   },
 

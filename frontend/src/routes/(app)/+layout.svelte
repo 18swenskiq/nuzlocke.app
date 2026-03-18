@@ -77,7 +77,7 @@
   <link
     rel="preload"
     as="image"
-    href="https://img.nuzlocke.app/assets/pokemon-v6.png"
+    href="/assets/pokemon-v6.png"
   />
 </svelte:head>
 
