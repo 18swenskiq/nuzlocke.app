@@ -7,9 +7,4 @@ stats.html
 masters
 scripts
 .log
-frontend/static/assets
-frontend/static/leaders
-frontend/static/logos
-frontend/static/sprites
-frontend/static/graves
-frontend/static/audio
+frontend/download-assets.mjs

@@ -54,6 +54,8 @@
   import ThemeToggle from '$lib/components/theme-toggle.svelte'
   import { Icon, Logo, Button, Popover } from '$lib/components/core'
   import { Box, Save, Game, Grave, Caret, CaretRight, Dots } from '$icons'
+  import { Expanded as Games } from '$lib/data/games'
+  import { IMG } from '$lib/utils/rewrites'
 
   const pages = [
     { name: 'Game', link: '/game', icon: Game },
@@ -72,7 +74,7 @@
       <a href="/" rel="external" class="{$$restProps.class || ''} home group">
         {#if game?.game}
           <Logo
-            src="/assets/{game?.game}"
+            src="{IMG}{Games[game?.game]?.logo || ''}"
             pictureClass="game--{game?.game}"
             class="h-10 w-auto max-md:pt-2 sm:w-20 md:mr-4 md:h-auto"
             alt="{game?.game} logo"
@@ -135,7 +137,7 @@
                   {game.name}
                   <Logo
                     alt="{game.name} logo"
-                    src="/assets/{game.game}"
+                    src="{IMG}{Games[game.game]?.logo || ''}"
                     class="ml-2 w-16"
                     aspect="192x96"
                   />

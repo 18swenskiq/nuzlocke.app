@@ -41,9 +41,9 @@ Swathes of deserving Pokémon have been patched & iproved to make them more viab
 
 ### New Pokémon
 
-![Seviian Milotic](https://img.nuzlocke.app/sprites/radred/milotic-sevii.png "Seviian Milotic")
-![Flying Pikachu](https://img.nuzlocke.app/sprites/radred/pikachu-flying.png "Flying Pikachu")
-![Ursaluna](https://img.nuzlocke.app/sprites/base/901.png "Ursaluna")
+![Seviian Milotic](/sprites/radred/milotic-sevii.png "Seviian Milotic")
+![Flying Pikachu](/sprites/radred/pikachu-flying.png "Flying Pikachu")
+![Ursaluna](/sprites/base/901.png "Ursaluna")
 
 Several new Pokémon have been added to the game, including those all Pokémon up to Generation 8. Over
 200 Pokémon have been retyped or had their stats adjusted to provide better balance and variety in battle.
@@ -52,6 +52,6 @@ You can also find som new forms, such as _Pikachu's Surfing_ and _Flying_ forms 
 
 ### Follower Pokémon
 
-![Umbreon following Trainer](https://img.nuzlocke.app/content/follower.png "Follower Pokémon")
+![Umbreon following Trainer](/content/follower.png "Follower Pokémon")
 
 Everyone's favourite feature is back in Radical Red,  allowing a Pokémon to follow you around as you travel through the game. To enable this feature speak with the Tamer in the Viridian City Pokémon Center who will ask if you want the first Pokémon in your party to follow you. The feature can be disabled or re-enabled by speaking with the same Tamer. It's important to note that the feature may be buggy, so it's recommended to disable and re-enable it periodically to avoid any issues.

@@ -23,6 +23,8 @@
   import { NuzlockeStates } from '$lib/data/states'
   import { Bin, Download, Share } from '$icons'
   import { Icon, PIcon, IconButton, Logo as Picture } from '$c/core'
+  import { Expanded as Games } from '$lib/data/games'
+  import { IMG } from '$lib/utils/rewrites'
 
   let team, available, deceased
   getGame(id).subscribe(
@@ -78,7 +80,7 @@
   >
     <Picture
       alt="{name} logo"
-      src="/assets/{game}"
+      src="{IMG}{Games[game]?.logo || ''}"
       class="hidden h-16 w-32 sm:block"
       aspect="192x96"
     />

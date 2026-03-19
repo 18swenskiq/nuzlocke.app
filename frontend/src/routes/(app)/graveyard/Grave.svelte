@@ -52,7 +52,7 @@
       pixelated
       class="tombstone tombstone--{graveid}"
       alt="Tombstone for {nickname} the {pokemon}"
-      src="https://img.nuzlocke.app/graves/grave-{graveid}"
+      src="/graves/grave-{graveid}"
       aspect="192x256"
     />
   {/key}

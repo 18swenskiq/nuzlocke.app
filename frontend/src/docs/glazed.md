@@ -14,6 +14,6 @@ As the protagonist, you'll be following the story of Kris, who becomes the Johto
 
 ### Mega Evolution
 
-![Charizard Mega X](https://img.nuzlocke.app/sprites/base/10035.png "Mega Charizard X")
+![Charizard Mega X](/sprites/base/10035.png "Mega Charizard X")
 
 Pokémon Glazed includes permanent Mega evolution through the use of the **Mega Stone** item. This lets you expand your team even further to use some of the strongest Pokémon in the game!

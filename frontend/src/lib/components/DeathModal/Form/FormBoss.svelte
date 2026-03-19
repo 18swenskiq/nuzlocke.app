@@ -107,7 +107,7 @@
 
     {#if league && (league[item.value].img?.src || league[item.value].img)}
       <Picture
-        src="https://img.nuzlocke.app{league[item.value].img?.src ||
+        src="{league[item.value].img?.src ||
           league[item.value].img}"
         alt={item.name}
         pixelated

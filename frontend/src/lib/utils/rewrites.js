@@ -6,7 +6,7 @@ const rewrite = !building && !dev
 
 export const SPRITE = 'https://img.nuzlocke.app/sprites'
 export const CUSTOM = 'https://img.nuzlocke.app/sprites'
-export const IMG = 'https://img.nuzlocke.app'
+export const IMG = ''
 export const SHARE = 'https://share.nuzlocke.app'
 
 export const DATA = rewrite ? '/api' : '/api' // Load locally for development
@@ -19,7 +19,7 @@ export const INSTASCAN = rewrite
   ? '/assets/js/instascan.min.js'
   : 'https://cdn.jsdelivr.net/gh/schmich/instascan-builds@master/instascan.min.js'
 
-export const UNOWN = 'https://img.nuzlocke.app/sprites/unown.png?v=1'
+export const UNOWN = 'https://img.nuzlocke.app/sprites/unown.png?v=1' // sprites still served from CDN
 
 export const createImgUrl = (p, { ext = 'webp', shiny = false } = {}) => {
   if (!p) return UNOWN

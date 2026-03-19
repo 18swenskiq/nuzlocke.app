@@ -15,7 +15,7 @@ const resourceMap = {
 
 export async function GET({ params }) {
   const { resource } = params
-  if (!resourceMap[resource]) return
+  if (!resourceMap[resource]) return new Response(null, { status: 404 })
 
   return new Response(clean.minify(resourceMap[resource]).styles, {
     status: 200,

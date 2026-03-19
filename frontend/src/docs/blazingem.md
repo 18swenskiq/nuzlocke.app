@@ -7,7 +7,7 @@ Pokémon Blazing Emerald is a ROM hack of Pokémon Emerald, with rebalanced mech
 
 ### New Pokémon
 
-![Hoennian Tentacruel](https://img.nuzlocke.app/sprites/blazingem/h-tentacruel.png "Hoennian Tentacruel")
-![Mallarki](https://img.nuzlocke.app/sprites/blazingem/mallarki.png "Mallarki")
+![Hoennian Tentacruel](/sprites/blazingem/h-tentacruel.png "Hoennian Tentacruel")
+![Mallarki](/sprites/blazingem/mallarki.png "Mallarki")
 
 Blazing emerald includes new regional forms of some of your favourite Pokémon, as well as new evolutions for existing Pokémon lines! The Hoenn dex is also 100% completable in the base game, trade evolutions have been replaced with a new item - the _Link stone_.
