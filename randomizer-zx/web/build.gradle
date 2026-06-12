@@ -13,13 +13,6 @@ sourceSets {
     main {
         java {
             srcDir 'src/main/java'
-            source fileTree('../upstream/src') {
-                exclude 'launcher/**'
-                exclude 'com/dabomstew/pkrandom/newgui/**'
-                exclude 'com/dabomstew/pkrandom/cli/**'
-                exclude 'com/dabomstew/pkrandom/localtests/**'
-                exclude 'com/dabomstew/pkrandom/Utils.java'
-            }
         }
         resources {
             srcDir '../upstream/src'
@@ -30,8 +23,21 @@ sourceSets {
     }
 }
 
+def upstreamJavaSources = fileTree('../upstream/src') {
+    include '**/*.java'
+    exclude 'launcher/**'
+    exclude 'com/dabomstew/pkrandom/newgui/**'
+    exclude 'com/dabomstew/pkrandom/cli/**'
+    exclude 'com/dabomstew/pkrandom/localtests/**'
+    exclude 'com/dabomstew/pkrandom/Utils.java'
+}
+
 tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8'
+}
+
+tasks.named('compileJava', JavaCompile).configure {
+    source(upstreamJavaSources)
 }
 
 teavm {
