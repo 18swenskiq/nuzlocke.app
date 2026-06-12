@@ -1,7 +1,7 @@
 <script>
   export let id = 25
 
-  import { createImgUrl, IMG } from '$utils/rewrites'
+  import { IMG } from '$utils/rewrites'
 
   import { flip as animflip } from 'svelte/animate'
   import { fly } from 'svelte/transition'
@@ -16,12 +16,85 @@
 
   const interval = 5000
   const distance = 300
+  const fallbackSprite = '/sprite/202.png'
+  const pokeApi = 'https://pokeapi.co/api/v2/pokemon'
+  const spriteCacheKey = 'nuzlocke:pokemon-home-sprites:v1'
 
   let flip = 0
-  setInterval(() => {
-    flip = (flip + 1) % 2
-    id = Math.round(Math.random() * 151)
-  }, interval)
+  let src = fallbackSprite
+  let carouselActive = false
+  let nextSpritePending = false
+  let spriteCache = {}
+
+  const randomSpriteId = () => Math.floor(Math.random() * 151) + 1
+
+  const readSpriteCache = () => {
+    try {
+      return JSON.parse(localStorage.getItem(spriteCacheKey) || '{}')
+    } catch {
+      return {}
+    }
+  }
+
+  const writeSpriteCache = () => {
+    try {
+      localStorage.setItem(spriteCacheKey, JSON.stringify(spriteCache))
+    } catch {
+      // Storage can be unavailable in private browsing; in-memory cache still helps.
+    }
+  }
+
+  const fetchSpriteUrl = async (nextId) => {
+    const cached = spriteCache[nextId]
+    if (cached) return cached
+
+    const response = await fetch(`${pokeApi}/${nextId}/`)
+    if (!response.ok) throw new Error(`PokeAPI returned ${response.status}`)
+
+    const pokemon = await response.json()
+    const nextSrc =
+      pokemon?.sprites?.other?.home?.front_default ||
+      pokemon?.sprites?.front_default
+
+    if (!nextSrc) throw new Error(`No sprite found for Pokemon #${nextId}`)
+
+    spriteCache = { ...spriteCache, [nextId]: nextSrc }
+    writeSpriteCache()
+
+    return nextSrc
+  }
+
+  const preloadImage = (nextSrc) =>
+    new Promise((resolve, reject) => {
+      const img = new Image()
+
+      img.onload = () => resolve(nextSrc)
+      img.onerror = reject
+      img.src = nextSrc
+    })
+
+  const loadSprite = async (nextId) => preloadImage(await fetchSpriteUrl(nextId))
+
+  const queueNextSprite = async (
+    nextId = randomSpriteId(),
+    { animate = true } = {}
+  ) => {
+    if (!carouselActive || nextSpritePending || summary?.team?.length) return
+    nextSpritePending = true
+
+    try {
+      const nextSrc = await loadSprite(nextId)
+      if (!carouselActive) return
+
+      id = nextId
+      src = nextSrc
+      if (animate) flip = (flip + 1) % 2
+    } catch {
+      // Ignore one bad API/image response; the next interval will try another sprite.
+    } finally {
+      nextSpritePending = false
+    }
+  }
 
   let activeId,
     active = {},
@@ -33,13 +106,13 @@
   ]
 
   onMount(() => {
-    const [data, , id, save] = readdata()
-    activeId = id
+    spriteCache = readSpriteCache()
+
+    const [data, , savedId, save] = readdata()
+    activeId = savedId
     active = save
     summarise((data) => {
       summary = data
-
-      console.log(summary)
     })(data)
 
     if (active) {
@@ -54,14 +127,22 @@
       ]
     }
 
+    carouselActive = true
+    queueNextSprite(id, { animate: false })
+    const timer = setInterval(queueNextSprite, interval)
+
+    return () => {
+      carouselActive = false
+      clearInterval(timer)
+    }
   })
 
-  let src
   $: duration = Math.min(interval / 3, 1000)
-  $: src = createImgUrl({ imgId: id }, { ext: 'png' })
 </script>
 
 <svelte:head>
+  <link rel="preconnect" href="https://pokeapi.co" />
+  <link rel="preconnect" href="https://raw.githubusercontent.com" />
   <link rel="preload" as="image" href="/assets/pokemon-v6.png" />
   <link rel="preload" as="image" href="/logo.webp" />
   <link rel="preload" as="image" href="/logo.png" />
@@ -134,9 +215,11 @@
           {#if !flip}
             <img
               {src}
-              rel="external"
+              loading="eager"
+              decoding="async"
               alt="Pokemon #{id}"
               class="absolute right-0 -my-2 -ml-12 w-full transition md:-my-12"
+              on:error={() => (src = fallbackSprite)}
               out:fly={{ y: distance, duration }}
               in:fly={{ y: -distance, duration }}
             />
@@ -144,9 +227,11 @@
           {#if flip}
             <img
               {src}
-              rel="external"
+              loading="eager"
+              decoding="async"
               alt="Pokemon #{id}"
               class="absolute right-0 -my-2 -ml-12 w-full transition md:-my-12"
+              on:error={() => (src = fallbackSprite)}
               out:fly={{ y: distance, duration }}
               in:fly={{ y: -distance, duration }}
             />
@@ -234,6 +319,10 @@
   img {
     image-rendering: pixelated;
     transition-duration: 300ms !important;
+  }
+
+  .img__container img {
+    image-rendering: auto;
   }
 
   .pink {
