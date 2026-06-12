@@ -23,7 +23,7 @@
     info
 
   import { browser } from '$app/environment'
-  import { onMount, getContext } from 'svelte'
+  import { getContext } from 'svelte'
   import { fade } from 'svelte/transition'
 
   import Pokemon from '$lib/components/pokemon-card.svelte'

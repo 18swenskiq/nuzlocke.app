@@ -146,7 +146,11 @@
       on:click={ondelete}
     />
 
-    <a bind:this={downloadAnchor}>
+    <a
+      bind:this={downloadAnchor}
+      href="data:application/json,%7B%7D"
+      download="nuzlocke-save.json"
+    >
       <IconButton
         rounded
         color="yellow"

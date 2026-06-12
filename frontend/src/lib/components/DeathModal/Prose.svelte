@@ -1,14 +1,13 @@
 <script>
-  import { Tokens, format, randomTemplate, ELossType } from './prose'
+  import { format, randomTemplate, ELossType } from './prose'
   import { Icon, IconButton, Tabs, PIcon } from '$c/core'
 
   import { Grave, Dice, Edit } from '$icons'
 
   export let pokemon, nickname, ctx, epitaph = null, custom = false
   export let base = epitaph || randomTemplate(ELossType.Random)
-  let textContent
 
-  const onkeydown = (e) => custom = true
+  const onkeydown = () => custom = true
   const onrandom = () => {
     custom = false
     const rand = randomTemplate(category)
@@ -70,7 +69,8 @@
 
   <span
     class='min-w-[10ch] select-text border-transparent px-1 md:px-2 -ml-1 md:-ml-2 md:-mr-3 focus:text-black dark:focus:text-white focus:underline decoration-orange-300 dark:decoration-orange-400 underline-offset-4 outline-none'
-    tabIndex='0'
+    tabindex='0'
+    role="textbox"
     spellcheck=false
     contenteditable
     bind:this={content}

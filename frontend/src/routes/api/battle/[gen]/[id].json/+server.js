@@ -233,7 +233,7 @@ export async function GET({ params, url }) {
             // Verify move fetch & patch works
             await Promise.all(
               p.moves.map((m) =>
-                P.getMoveByName(m).catch((e) => {
+                P.getMoveByName(m).catch(() => {
                   if (patch.move[m]) return
                   if (patch.move[m.name]) return
                   console.error('E_GET_MOVE: ' + m)

@@ -48,7 +48,7 @@
     delete ctx.attackSearch
   }
 
-  const resetopponent = (t) => {
+  const resetopponent = () => {
     delete ctx.opponent
     delete ctx.opponentSearch
     resetattack()
@@ -162,7 +162,7 @@
 {/if}
 
 <!-- Move selcetor -->
-<style>
+<style lang="postcss">
   span.item--leader > span {
     @apply line-clamp-1;
   }

@@ -38,7 +38,7 @@
   </span>
 </AutoComplete>
 
-<style>
+<style lang="postcss">
   span.item {
     @apply inline-flex h-4
     w-full items-center justify-between

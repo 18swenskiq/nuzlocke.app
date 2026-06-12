@@ -212,7 +212,7 @@
 </section>
 <div class="block h-48 md:hidden" />
 
-<style>
+<style lang="postcss">
   .setting {
     width: 100%;
   }

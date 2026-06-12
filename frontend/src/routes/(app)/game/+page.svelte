@@ -89,8 +89,6 @@
     deferStyles(`/assets/items/${gameKey}.css`)
   })
 
-  let setupError = null
-
   const setup = () =>
     new Promise((resolve, reject) => {
       try {

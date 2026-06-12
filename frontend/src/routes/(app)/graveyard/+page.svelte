@@ -1,6 +1,6 @@
 <script>
   import { browser } from '$app/environment'
-  import { onMount, getContext } from 'svelte'
+  import { getContext } from 'svelte'
   import { fade } from 'svelte/transition'
 
   import { Grave, GraveRow, Fog } from './'
@@ -9,11 +9,10 @@
 
   import { locid } from '$utils/pokemon'
   import { chunk } from '$utils/arr'
-  import { capitalise } from '$utils/string'
   import { summarise } from '$utils/badges'
 
   import { activeGame, getGame, read, readTeams, patch } from '$lib/store'
-  import { Loader, Toggle, Tooltip, PIcon } from '$c/core'
+  import { Toggle, Tooltip, PIcon } from '$c/core'
 
   import { IMG } from '$utils/rewrites'
 
@@ -169,7 +168,7 @@
   {/if}
 </main>
 
-<style>
+<style lang="postcss">
   @media (max-width: theme('screens.md')) {
     main {
       height: calc(100vh - 38px);

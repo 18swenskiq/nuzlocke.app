@@ -9,7 +9,7 @@
   <slot />
 </div>
 
-<style>
+<style lang="postcss">
 
   @media (min-width: theme('screens.md')) {
     .row--0 > :global(*) { @apply -mx-4 -mb-16; }

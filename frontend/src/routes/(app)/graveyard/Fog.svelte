@@ -58,7 +58,7 @@
   </div>
 </div>
 
-<style>
+<style lang="postcss">
 
   @keyframes anim {
     0% { transform: translateX(0); }

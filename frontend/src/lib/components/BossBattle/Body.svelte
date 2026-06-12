@@ -122,7 +122,7 @@
   </div>
 </div>
 
-<style>
+<style lang="postcss">
   p {
     @apply text-xs italic text-gray-500 max-md:text-center;
   }

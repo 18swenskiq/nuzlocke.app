@@ -74,7 +74,7 @@ export const showCustom = (route, filters, hideRoute = (_) => false) => {
   )
 }
 
-export const showGym = (route, filters, hideRoute = (_) => false) => {
+export const showGym = (route, filters) => {
   const { type, group } = route
   return (
     type === TYPES.GYM &&

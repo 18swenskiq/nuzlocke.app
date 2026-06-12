@@ -1,13 +1,7 @@
 <script>
   import { fade } from 'svelte/transition'
-  import { createEventDispatcher } from 'svelte'
 
   import { Heading, Body, Team, Vs } from './'
-  import { Button, PIcon } from '$c/core'
-  import { toList, regionise, capitalise } from '$lib/utils/string'
-
-  const dispatch = createEventDispatcher()
-  const compare = () => dispatch('compare')
 
   export let gym = [],
     team = [],

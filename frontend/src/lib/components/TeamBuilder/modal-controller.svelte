@@ -10,7 +10,7 @@
     import('$lib/components/TeamBuilder/modal.svelte').then(m => Modal = m.default)
   })
 
-  const onopen = (e) => open(Modal, {
+  const onopen = () => open(Modal, {
     mons,
     max: 6 - mons.length,
     submit: (data) => dispatch('submit', data)

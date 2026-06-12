@@ -139,10 +139,10 @@
       <div
         class="my-3 -mr-32 flex flex-auto basis-full flex-col gap-2 md:order-2 md:my-2 md:inline-flex md:flex-row"
       >
-        <label
+        <span
           ><b>Difficulty</b><br /><small class="sm:hidden"
             >This game offers multiple difficulty choices</small
-          ></label
+          ></span
         >
         <Radio
           name="difficulty"

@@ -1,5 +1,4 @@
 <script>
-  import { onMount, onDestroy } from 'svelte'
   import { fade } from 'svelte/transition'
 
   import TypeBadge from '$lib/components/type-badge.svelte'

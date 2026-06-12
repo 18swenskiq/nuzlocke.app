@@ -10,7 +10,9 @@
     try {
       await audio.play()
       played = true
-    } catch (e) {}
+    } catch {
+      played = false
+    }
   }
 
   onMount(() => {

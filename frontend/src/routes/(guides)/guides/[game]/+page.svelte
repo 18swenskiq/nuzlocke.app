@@ -39,12 +39,13 @@
     dateModified: attributes.updated || attributes.created || '2022-01-07',
     description: description
   }
+  const scriptClose = '</' + 'script>'
   const articleSchema = `<script type="application/ld+json">${JSON.stringify(
     schema
-  )}<\/script>`
+  )}${scriptClose}`
   const faqSchema = `<script type="application/ld+json">${JSON.stringify(
     faq(game, data.data.fire, route)
-  )}<\/script>`
+  )}${scriptClose}`
 </script>
 
 <svelte:head>

@@ -5,14 +5,14 @@
     id
 
   import { capitalise, regionise } from '$lib/utils/string'
-  import { IMG, createImgUrl } from '$utils/rewrites'
+  import { createImgUrl } from '$utils/rewrites'
 
   import GraveEpitaph from './GraveEpitaph.svelte'
   import { format } from '$c/DeathModal/prose'
   import { Tooltip, Picture } from '$c/core'
 
   import Icon from '@iconify/svelte/dist/OfflineIcon.svelte'
-  import { Quote, Edit, Plus } from '$icons'
+  import { Edit, Plus } from '$icons'
 
   import { getContext, createEventDispatcher } from 'svelte'
   const { getPkmn } = getContext('game')
@@ -22,6 +22,11 @@
   $: getPkmn(pokemon).then((data) => (Pokemon = data))
 
   const onclick = () => dispatch('click', { pokemon, nickname, death })
+  const onkeydown = (event) => {
+    if (event.key !== 'Enter' && event.key !== ' ') return
+    event.preventDefault()
+    onclick()
+  }
 
   let gravehash = 0
   $: gravehash = death?.epitaph?.length || nickname?.length || pokemon?.length
@@ -37,6 +42,9 @@
 
 <div
   on:click={onclick}
+  on:keydown={onkeydown}
+  role="button"
+  tabindex="0"
   class="grave group z-20 mx-auto mt-10 h-48 w-36 scale-150 transform cursor-pointer md:scale-100"
 >
   <!-- Epitaph tooltip -->
@@ -119,7 +127,7 @@
   </GraveEpitaph>
 {/if}
 
-<style>
+<style lang="postcss">
   p:not(.epitaph) {
     @apply w-full text-center font-mono text-base leading-3 text-gray-100;
     text-shadow: 1px 1px 0 rgba(0, 0, 0, 0.75);

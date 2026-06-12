@@ -47,7 +47,6 @@
   let search, statusSearch, natureSearch
 
   export let encounters = []
-  let encounterItems = []
   const encounterF = (_) =>
     getPkmns(encounters).then((e) =>
       (encounters || []).map((id) => e[id]).filter((i) => i)
@@ -436,7 +435,8 @@
             {/if}
           </svelte:fragment>
 
-          <div
+          <button
+            type="button"
             on:click={handleStatus(option.id)}
             class="inline-flex items-center py-2 pr-3 pl-1 md:py-3"
             slot="option"
@@ -449,7 +449,7 @@
               class="mr-2 transform fill-current md:scale-125"
             />
             {@html label}
-          </div>
+          </button>
         </AutoCompleteV2>
       </svelte:fragment>
     </SettingsWrapper>

@@ -1,5 +1,4 @@
 <script>
-  import { Footer, CookieBanner } from '$c/navs'
   import { afterUpdate } from 'svelte'
   import { page } from '$app/stores'
 

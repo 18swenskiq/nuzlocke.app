@@ -9,9 +9,6 @@
 
   const IconMap = ['dire-hit-1', 'x-sp-def-2', 'x-attack-3']
 
-  function fmtPct(n) {
-    return Math.floor(n * 100) + '%'
-  }
 </script>
 
 <li class="relative flex flex-col items-center justify-start text-xs">

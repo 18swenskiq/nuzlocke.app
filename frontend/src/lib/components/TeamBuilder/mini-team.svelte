@@ -1,7 +1,7 @@
 <script>
   import { PIcon, Icon } from '$c/core'
   import { X, Plus } from '$icons'
-  import { fade, scale } from 'svelte/transition'
+  import { scale } from 'svelte/transition'
   import { drag } from '$utils/drag'
 
   import { ModalController } from './'

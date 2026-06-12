@@ -37,12 +37,14 @@
 </footer>
 
 <!-- svelte-ignore css-unused-selector -->
-<style>
+<style lang="postcss">
   footer { @apply text-center w-full absolute bottom-4 md:bottom-2 sm:my-6 px-4 text-tiny md:text-xs text-gray-500 dark:text-gray-400 leading-3 z-20 h-max; }
   footer > p { @apply flex justify-center text-2xl gap-x-2; }
   footer a,
   footer button { @apply transition-colors; }
-  footer button:hover, footer a:hover, { @apply text-black }
-  :global(.dark) footer button:hover, :global(.dark) footer a:hover { @apply text-white }
-  footer button { @apply p-3 }
+  footer button:hover,
+  footer a:hover { @apply text-black; }
+  :global(.dark) footer button:hover,
+  :global(.dark) footer a:hover { @apply text-white; }
+  footer button { @apply p-3; }
 </style>

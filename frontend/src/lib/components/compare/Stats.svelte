@@ -39,7 +39,7 @@
   </div>
 </SettingWrapper>
 
-<style>
+<style lang="postcss">
   .sleft {
     left: 72px;
     @apply origin-left justify-start;

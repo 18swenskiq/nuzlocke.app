@@ -1,14 +1,12 @@
 <script>
   import { capitalise, regionise } from '$utils/string'
-  import { PIcon, Icon, Button, IconButton } from '$c/core'
-  import { X, Add } from '$icons'
+  import { PIcon, Button, IconButton } from '$c/core'
+  import { X } from '$icons'
   
   export let max = 6, mons = [], submit
   
   import { getContext } from 'svelte'
   import { getBox } from '$lib/store'
-  const { getPkmns } = getContext('game')
-
   const { close } = getContext('simple-modal')
   
   let box = {}, availableMons = []

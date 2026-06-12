@@ -1,7 +1,7 @@
 <script>
   import { fade } from 'svelte/transition'
   
-  import { Search, X, Info } from '$icons'
+  import { Search, X } from '$icons'
   import { Icon, Input } from '$c/core'
 
   export let term

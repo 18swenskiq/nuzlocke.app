@@ -120,7 +120,7 @@ export const updateGame = (game) => (payload) => {
   return Object.values(games).map(format).join(',')
 }
 
-export const updatePokemon = ({ customId, customName, ...p } = {}) => {
+export const updatePokemon = ({ customId, customName: _, ...p } = {}) => {
   activeGame.subscribe((gameId) => {
     getGameStore(gameId).update(
       patch({
@@ -130,7 +130,7 @@ export const updatePokemon = ({ customId, customName, ...p } = {}) => {
   })
 }
 
-export const killPokemon = ({ customId, customName, ...p }) => {
+export const killPokemon = ({ customId, customName: _, ...p }) => {
   activeGame.subscribe((gameId) => {
     getGameStore(gameId).update(
       patch({
@@ -300,7 +300,7 @@ export const format = (saveData) =>
 
 export const summarise =
   (cb = (_) => { }) =>
-    ({ __starter, __custom, __team = [], __teams, ...data }) => {
+    ({ __team = [], ...data }) => {
       const pkmn = Object.values(data)
       const team = readTeam({ ...data, __team })
       cb({
@@ -323,7 +323,7 @@ if (typeof window !== 'undefined')
         _xLen,
         _x
       for (_x in localStorage) {
-        if (!localStorage.hasOwnProperty(_x)) {
+        if (!Object.prototype.hasOwnProperty.call(localStorage, _x)) {
           continue
         }
         _xLen = (localStorage[_x].length + _x.length) * 2
@@ -363,7 +363,7 @@ if (typeof window !== 'undefined')
       const id = `nuzlocke.${window.localStorage['nuzlocke']}`
       if (!id) return 'Not sure'
 
-      const { __teams, ...data } = JSON.parse(window.localStorage[id])
+      const data = JSON.parse(window.localStorage[id])
       window.localStorage.setItem(id, JSON.stringify({ ...data, __teams: [] }))
     }
   }

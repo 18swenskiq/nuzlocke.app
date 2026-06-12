@@ -43,8 +43,6 @@
   const { store, key, data } = game
 
   let starter = data.__starter || 'fire'
-  let element
-
   /** Custom route handlers & Empty routes */
   let custom = [],
     hidden = [],
@@ -100,11 +98,11 @@
     })
   }
 
-  const setloc = (id, i) => {
+  const setloc = (id) => {
     document.getElementById(id) ? scrollToItem(id) : (scroll = id)
   }
 
-  const locid = (p, i) => {
+  const locid = (p) => {
     return p.type === 'custom'
       ? slugify(`${p.type}-${p.name}-${p.id}`)
       : slugify(`${p.type}-${p.name}-${p.origPos}`)
@@ -215,7 +213,7 @@
   {/each}
 </ul>
 
-<style>
+<style lang="postcss">
   li {
     scroll-margin-top: 28px;
     @apply snap-start;

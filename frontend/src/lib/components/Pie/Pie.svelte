@@ -2,8 +2,7 @@
   import Segment from './Segment.svelte'
   export let size = 160, data = []
 
-  const last = arr => arr[arr.length - 1]
-  const [result] = data.reduce(([arr, val], it, i, oarr) => {
+  const [result] = data.reduce(([arr, val], it) => {
     const over50 = val < 50 && val + it.value > 50
     const item = { ...it, offset: val, over50 }
     return [arr.concat(item), val + it.value]

@@ -56,7 +56,7 @@
   />
 </div>
 
-<style>
+<style lang="postcss">
   :global(.dark .searchbutton) {
     @apply !border-gray-900;
 

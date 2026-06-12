@@ -72,7 +72,7 @@
   <div style="--b-col: {rCol(themeId)}" class="bst"><b>{defStats}</b></div>
 </SettingWrapper>
 
-<style>
+<style lang="postcss">
   img {
     image-rendering: pixelated;
   }

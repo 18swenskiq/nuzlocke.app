@@ -1,6 +1,6 @@
 <script>
   export let gyms, game, path, data
-  import { Tabs, PIcon } from '$c/core'
+  import { PIcon } from '$c/core'
   import GymCard from '$c/gym-card.svelte'
 
   import { capitalise, toSlug, toId } from '$utils/string'
@@ -12,8 +12,6 @@
 
   const count = Object.values(gyms).flat().length
   const order = GuideBossOrder.filter(i => gyms[i])
-  const identity = i => i
-
   const rivalVal = gyms['Rival'][0].value
   const champVal = gyms['Elite Four'].slice(-2)[0].value
   const rivalData = data.fire[rivalVal]
@@ -61,8 +59,13 @@
   <h3>Select your starter type</h3>
   <ul role=radiogroup class=flex>
     {#each ['grass', 'water', 'fire'] as type}
-      <li class={type} aria-checked={starter === type} role=radio>
-        <button title='Select {type}' on:click={setstarter(type)}>
+      <li class={type} class:selected={starter === type}>
+        <button
+          aria-checked={starter === type}
+          role=radio
+          title='Select {type}'
+          on:click={setstarter(type)}
+        >
           <PIcon className='starter-icon' type=symbol name='type-{type}' />
         </button>
       </li>
@@ -169,11 +172,11 @@
   }
 
   .starter li { @apply transform scale-50 -my-8 md:scale-100 md:my-0 cursor-pointer; }
-  .starter li.fire[aria-checked=true] { background-color: #ff9d53; }
-  .starter li.water[aria-checked=true] { background-color: #4c91d7; }
-  .starter li.grass[aria-checked=true] { background-color: #62bc5b; }
+  .starter li.fire.selected { background-color: #ff9d53; }
+  .starter li.water.selected { background-color: #4c91d7; }
+  .starter li.grass.selected { background-color: #62bc5b; }
 
-  .starter li[aria-checked=true] :global(.starter-icon) {
+  .starter li.selected :global(.starter-icon) {
     filter: brightness(10);
     opacity: 1;
   }
@@ -192,7 +195,7 @@
     transition: all 0.2s ease;
   }
 
-  .starter li[aria-checked=false]:hover :global(.starter-icon) {
+  .starter li:not(.selected):hover :global(.starter-icon) {
     filter: brightness(1);
     opacity: 1;
   }

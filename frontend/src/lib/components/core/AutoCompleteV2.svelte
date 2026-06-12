@@ -130,6 +130,7 @@
 <div
   {style}
   class="autocomplete {$$restProps.class || ''}"
+  role="presentation"
   use:clickOutside
   on:clickOutside={hideMenu}
   on:keydown={handleKeyDown}
@@ -213,7 +214,7 @@
   {/await}
 </div>
 
-<style>
+<style lang="postcss">
   :root {
     --auc-inset: theme('spacing.3');
   }

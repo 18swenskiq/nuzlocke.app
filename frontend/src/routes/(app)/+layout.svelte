@@ -1,5 +1,5 @@
 <script>
-  import { browser, dev } from '$app/environment'
+  import { browser } from '$app/environment'
   import { setContext, afterUpdate } from 'svelte'
 
   import { page } from '$app/stores'
@@ -20,7 +20,7 @@
   setContext('region', RegionMap[gameKey] ?? 'unknown')
 
   afterUpdate(() => {
-    const [, id, , game] = readdata()
+    const [, id] = readdata()
 
     if (id === 'blazingem') deferStyles('/assets/pokemon-blazingem.css')
     if (id?.includes('radred')) deferStyles('/assets/pokemon-radicalred.css')

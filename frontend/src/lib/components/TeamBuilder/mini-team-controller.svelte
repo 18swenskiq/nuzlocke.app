@@ -3,7 +3,6 @@
   import { X, Ball, Plus } from '$icons'
 
   import { MiniTeam } from './'
-  import { toObj } from '$utils/obj'
   import { locid as pokeLocId } from '$utils/pokemon'
   import { fade } from 'svelte/transition'
   import {
@@ -41,7 +40,7 @@
   }
 
   const locid = (evt) => pokeLocId(evt.detail.data)
-  const toarray = (data) => (teamData ? [].concat(teamData) : [])
+  const toarray = (data) => (data ? [].concat(data) : [])
 
   const onteamadd = (evt) => {
     setTeam(
@@ -135,7 +134,7 @@
   </div>
 {/await}
 
-<style>
+<style lang="postcss">
   div {
     @apply relative mx-auto flex w-auto items-center text-center;
   }

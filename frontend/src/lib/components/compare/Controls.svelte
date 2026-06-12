@@ -71,7 +71,7 @@
         class:scale-125={selected}
         class:selected
         class="-mx-2 -my-2 origin-center transform cursor-pointer transition hover:scale-125 hover:opacity-100 hover:grayscale-0"
-        on:click={(e) => {
+        on:click={() => {
           value = page * pageSize + i
           dispatch('select')
         }}

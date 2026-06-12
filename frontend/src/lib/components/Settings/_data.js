@@ -22,5 +22,5 @@ export const settingsData = [
   { index: 0, name: 'Permadeath', help: 'Setting a Pokémon\'s status to Killed prevents you from changing it' },
 ].map((i) => ({ ...i, id: i.id || toKebabCase(i.name) }))
 
-const settingsMap = settingsData.reduce((acc, it, i) => ({ ...acc, [it.id]: it }), {})
+const settingsMap = settingsData.reduce((acc, it) => ({ ...acc, [it.id]: it }), {})
 export const getSetting = id => settingsMap[id].index

@@ -15,7 +15,7 @@
   </div>
 {/if}
 
-<style>
+<style lang="postcss">
   div {
     direction: ltr;
     @apply mx-auto mt-1 flex grid-cols-6 justify-center md:mr-8 md:ml-2 md:grid;

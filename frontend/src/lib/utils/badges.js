@@ -9,18 +9,6 @@ const Groups = {
   Rival: 'rival'
 }
 
-const Icons = {
-  EliteFour: 'elite-four',
-  Rival4: 'rival-100',
-  Rival3: 'rival-050',
-  Rival2: 'rival-025',
-  Rival1: 'rival-000',
-  EvilTeam4: 'evil-100',
-  EvilTeam3: 'evil-050',
-  EvilTeam2: 'evil-025',
-  EvilTeam1: 'evil-000'
-}
-
 const summaryText = (pokemon, GymFights = [], Other = {}) => {
   const isChamp = Other?.[Groups.EliteFour] > 4
   const beatGym = GymFights.length > 0
@@ -53,7 +41,7 @@ const summaryText = (pokemon, GymFights = [], Other = {}) => {
     .replace(/ ([,.])/g, '$1')
 }
 
-const summaryIcons = (GymFights = [], Other = {}) => {
+const summaryIcons = (GymFights = []) => {
   return [
     ...new Set([
       // ...(Other?.[Groups.EliteFour] > 4 ? [Icons.EliteFour] : []),
@@ -103,7 +91,7 @@ export const summarise = (pokemon, teams = []) => {
   )
 
   const summary = summaryText(pokemon, GymFights, Other)
-  const icons = summaryIcons(GymFights, Other)
+  const icons = summaryIcons(GymFights)
 
   if (icons.length) return { summary, icons }
 }
