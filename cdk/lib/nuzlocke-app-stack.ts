@@ -123,11 +123,12 @@ export class NuzlockeAppStack extends cdk.Stack {
     userPoolClient.node.addDependency(googleProvider);
 
     const userPoolDomainPrefix = 'nuzlocke-spkymnr-auth';
-    userPool.addDomain('AuthDomain', {
+    const userPoolDomain = userPool.addDomain('AuthDomain', {
       cognitoDomain: {
         domainPrefix: userPoolDomainPrefix,
       },
     });
+    const cognitoAuthDomain = userPoolDomain.baseUrl();
 
     const savesApiFunction = new lambda.Function(this, 'SavesApiFunction', {
       runtime: lambda.Runtime.NODEJS_20_X,
@@ -236,7 +237,7 @@ export class NuzlockeAppStack extends cdk.Stack {
         }],
       },
       additionalBehaviors: {
-        'api/*': {
+        'api/saves*': {
           origin: new origins.HttpOrigin(apiOriginDomain),
           viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
           allowedMethods: cloudfront.AllowedMethods.ALLOW_ALL,
@@ -269,7 +270,7 @@ export class NuzlockeAppStack extends cdk.Stack {
     const assetsPath = path.join(__dirname, '../assets');
     const authConfig = s3deploy.Source.jsonData('auth-config.json', {
       apiBaseUrl: '/api',
-      cognitoDomain: `https://${userPoolDomainPrefix}.auth.${this.region}.amazoncognito.com`,
+      cognitoDomain: cognitoAuthDomain,
       clientId: userPoolClient.userPoolClientId,
       logoutUri: `${siteUrl}/auth/signed-out`,
       redirectUri: `${siteUrl}/auth/callback`,
@@ -290,6 +291,7 @@ export class NuzlockeAppStack extends cdk.Stack {
       memoryLimit: 512,
       prune: fs.existsSync(assetsPath),
     });
+    deployment.node.addDependency(userPoolDomain);
 
     // CDK doesn't always auto-grant CloudFront invalidation permissions
     deployment.handlerRole.addToPrincipalPolicy(new iam.PolicyStatement({
@@ -341,12 +343,12 @@ export class NuzlockeAppStack extends cdk.Stack {
     });
 
     new cdk.CfnOutput(this, 'CognitoAuthDomain', {
-      value: `https://${userPoolDomainPrefix}.auth.${this.region}.amazoncognito.com`,
+      value: cognitoAuthDomain,
       description: 'Cognito hosted UI domain',
     });
 
     new cdk.CfnOutput(this, 'GoogleOAuthCallbackUrl', {
-      value: `https://${userPoolDomainPrefix}.auth.${this.region}.amazoncognito.com/oauth2/idpresponse`,
+      value: `${cognitoAuthDomain}/oauth2/idpresponse`,
       description: 'Add this URL to the Google OAuth client Authorized redirect URIs',
     });
   }
