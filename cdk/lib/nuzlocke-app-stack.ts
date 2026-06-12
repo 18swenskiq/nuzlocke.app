@@ -62,6 +62,23 @@ export class NuzlockeAppStack extends cdk.Stack {
       ],
     });
 
+    const randomizerBucket = new s3.Bucket(this, 'NuzlockeRandomizerBucket', {
+      encryption: s3.BucketEncryption.S3_MANAGED,
+      removalPolicy: cdk.RemovalPolicy.RETAIN,
+      blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
+      enforceSSL: true,
+      versioned: true,
+      lifecycleRules: [
+        {
+          prefix: 'temporary/',
+          expiration: cdk.Duration.days(1),
+        },
+        {
+          noncurrentVersionExpiration: cdk.Duration.days(30),
+        },
+      ],
+    });
+
     const userPool = new cognito.UserPool(this, 'UserPool', {
       userPoolName: 'nuzlocke-users',
       selfSignUpEnabled: true,
@@ -142,6 +159,18 @@ export class NuzlockeAppStack extends cdk.Stack {
     });
     savesBucket.grantReadWrite(savesApiFunction);
 
+    const randomizerApiFunction = new lambda.Function(this, 'RandomizerApiFunction', {
+      runtime: lambda.Runtime.NODEJS_20_X,
+      handler: 'index.handler',
+      code: lambda.Code.fromAsset(path.join(__dirname, '../lambda/randomizer')),
+      timeout: cdk.Duration.seconds(10),
+      memorySize: 256,
+      environment: {
+        RANDOMIZER_BUCKET_NAME: randomizerBucket.bucketName,
+      },
+    });
+    randomizerBucket.grantReadWrite(randomizerApiFunction);
+
     const jwtIssuer = `https://cognito-idp.${this.region}.amazonaws.com/${userPool.userPoolId}`;
     const savesAuthorizer = new apigwv2Authorizers.HttpJwtAuthorizer('SavesAuthorizer', jwtIssuer, {
       jwtAudience: [userPoolClient.userPoolClientId],
@@ -167,6 +196,11 @@ export class NuzlockeAppStack extends cdk.Stack {
       savesApiFunction,
     );
 
+    const randomizerIntegration = new apigwv2Integrations.HttpLambdaIntegration(
+      'RandomizerIntegration',
+      randomizerApiFunction,
+    );
+
     savesApi.addRoutes({
       path: '/api/saves',
       methods: [apigwv2.HttpMethod.GET],
@@ -182,6 +216,24 @@ export class NuzlockeAppStack extends cdk.Stack {
         apigwv2.HttpMethod.PUT,
       ],
       integration: savesIntegration,
+      authorizer: savesAuthorizer,
+    });
+
+    savesApi.addRoutes({
+      path: '/api/randomizer/runs',
+      methods: [apigwv2.HttpMethod.GET],
+      integration: randomizerIntegration,
+      authorizer: savesAuthorizer,
+    });
+
+    savesApi.addRoutes({
+      path: '/api/randomizer/runs/{runId}',
+      methods: [
+        apigwv2.HttpMethod.DELETE,
+        apigwv2.HttpMethod.GET,
+        apigwv2.HttpMethod.PUT,
+      ],
+      integration: randomizerIntegration,
       authorizer: savesAuthorizer,
     });
 
@@ -238,6 +290,14 @@ export class NuzlockeAppStack extends cdk.Stack {
       },
       additionalBehaviors: {
         'api/saves*': {
+          origin: new origins.HttpOrigin(apiOriginDomain),
+          viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
+          allowedMethods: cloudfront.AllowedMethods.ALLOW_ALL,
+          cachePolicy: cloudfront.CachePolicy.CACHING_DISABLED,
+          originRequestPolicy: cloudfront.OriginRequestPolicy.ALL_VIEWER_EXCEPT_HOST_HEADER,
+          compress: true,
+        },
+        'api/randomizer*': {
           origin: new origins.HttpOrigin(apiOriginDomain),
           viewerProtocolPolicy: cloudfront.ViewerProtocolPolicy.REDIRECT_TO_HTTPS,
           allowedMethods: cloudfront.AllowedMethods.ALLOW_ALL,
@@ -325,6 +385,11 @@ export class NuzlockeAppStack extends cdk.Stack {
     new cdk.CfnOutput(this, 'SavesBucketName', {
       value: savesBucket.bucketName,
       description: 'S3 bucket for user cloud save files',
+    });
+
+    new cdk.CfnOutput(this, 'RandomizerBucketName', {
+      value: randomizerBucket.bucketName,
+      description: 'S3 bucket for user randomizer manifests and temporary artifacts',
     });
 
     new cdk.CfnOutput(this, 'SavesApiEndpoint', {

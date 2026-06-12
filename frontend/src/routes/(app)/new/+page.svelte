@@ -13,12 +13,20 @@
   import AutoComplete from '$c/core/AutoCompleteV2.svelte'
 
   import Icon from '@iconify/svelte/dist/OfflineIcon.svelte'
-  import { File, Dice } from '$icons'
+  import { File, Dice, CloudUpload } from '$icons'
 
   import Games from '$lib/data/games.json'
   import { IMG } from '$lib/utils/rewrites'
 
   import { filterObj } from '$lib/utils/arr'
+  import { shortuuid } from '$lib/utils/uuid'
+  import { settingsDefault } from '$lib/components/Settings/_data'
+  import {
+    buildRandomizerManifest,
+    randomizerDefaults,
+    randomizerOptionGroups,
+    randomizerSettingsDefault
+  } from '$lib/randomizer/options'
 
   let validGames = filterObj(Games, (g) => g.supported)
 
@@ -31,7 +39,21 @@
     if (selectedGame?.difficulty)
       createid += difficultyOptions?.[difficulty]?.id || ''
 
-    savedGames.update(createGame(gameName, createid))
+    const randomizer = randomizeRun ? createRandomizerManifest(createid) : null
+
+    savedGames.update(
+      createGame(
+        gameName,
+        createid,
+        JSON.stringify(randomizer ? { __randomizer: randomizer } : {}),
+        randomizer
+          ? {
+              randomizer,
+              settings: randomizerSettingsDefault(settingsDefault)
+            }
+          : {}
+      )
+    )
     window.location = '/game'
   }
 
@@ -58,6 +80,70 @@
   let selected
   const handleSelect = (id) => () =>
     selected === id ? (selected = null) : (selected = id)
+
+  let randomizeRun = false
+  let romInfo = null
+  let romError = ''
+  let randomizerOptions = { ...randomizerDefaults }
+
+  const validRomExtensions = ['gb', 'gbc', 'gba', 'nds', '3ds', 'cia']
+  const romAccept = validRomExtensions.map((ext) => `.${ext}`).join(',')
+
+  const handleRomUpload = async (event) => {
+    const file = event.currentTarget.files?.[0]
+    romInfo = null
+    romError = ''
+
+    if (!file) return
+
+    const ext = file.name.split('.').pop()?.toLowerCase()
+    if (!validRomExtensions.includes(ext)) {
+      romError = 'Unsupported ROM file'
+      return
+    }
+
+    romInfo = {
+      name: file.name,
+      size: file.size,
+      sizeLabel: formatBytes(file.size),
+      extension: ext,
+      lastModified: file.lastModified,
+      sha256: await sha256(file)
+    }
+  }
+
+  const sha256 = async (file) => {
+    const digest = await crypto.subtle.digest('SHA-256', await file.arrayBuffer())
+    return [...new Uint8Array(digest)]
+      .map((byte) => byte.toString(16).padStart(2, '0'))
+      .join('')
+  }
+
+  const formatBytes = (bytes) => {
+    if (!bytes) return '0 B'
+    const units = ['B', 'KB', 'MB', 'GB']
+    const index = Math.min(
+      Math.floor(Math.log(bytes) / Math.log(1024)),
+      units.length - 1
+    )
+    return `${(bytes / 1024 ** index).toFixed(index ? 1 : 0)} ${units[index]}`
+  }
+
+  const setRandomizerOption = (id) => (event) => {
+    randomizerOptions = {
+      ...randomizerOptions,
+      [id]: event.currentTarget.value
+    }
+  }
+
+  const createRandomizerManifest = (gameKey) =>
+    buildRandomizerManifest({
+      runId: shortuuid(),
+      game: selectedGame,
+      gameKey,
+      options: randomizerOptions,
+      rom: romInfo
+    })
 
   let difficulty = 0,
     difficultyOptions = []
@@ -87,7 +173,7 @@
     name: d.split(':')[0] || 'Normal'
   }))
   $: selectedGame = validGames[selected]
-  $: disabled = !gameName.length || !selected
+  $: disabled = !gameName.length || !selected || (randomizeRun && !romInfo)
 </script>
 
 <svelte:head>
@@ -153,7 +239,20 @@
       </div>
     {/if}
 
-    <Button rounded {disabled} on:click={handleNewGame}>Create game</Button>
+    <label
+      class="inline-flex h-10 cursor-pointer items-center gap-2 rounded-lg border-2 border-gray-700 bg-gray-100 px-4 text-sm text-gray-700 transition hover:border-orange-500 hover:text-orange-500 dark:border-gray-200 dark:bg-gray-900 dark:text-gray-200 dark:hover:border-orange-400 dark:hover:text-orange-400"
+    >
+      <input
+        type="checkbox"
+        class="h-4 w-4 accent-orange-500"
+        bind:checked={randomizeRun}
+      />
+      Custom randomized run
+    </label>
+
+    <Button rounded {disabled} on:click={handleNewGame}>
+      {randomizeRun ? 'Create randomized run' : 'Create game'}
+    </Button>
     <div>
       <Tooltip
         >Generate a game with pre-randomized encounters, designed for games like
@@ -170,6 +269,75 @@
       </Button>
     </div>
   </div>
+
+  {#if randomizeRun}
+    <section
+      class="mt-6 grid gap-5 rounded-lg border-2 border-gray-200 bg-gray-50 p-4 text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+    >
+      <div class="flex flex-col gap-3 md:flex-row md:items-center">
+        <label
+          class="inline-flex h-10 cursor-pointer items-center justify-center gap-2 rounded-lg border-2 border-gray-700 bg-gray-100 px-4 font-bold transition hover:border-orange-500 hover:text-orange-500 dark:border-gray-200 dark:bg-gray-900 dark:hover:border-orange-400 dark:hover:text-orange-400"
+        >
+          <Icon inline={true} icon={CloudUpload} class="fill-current" />
+          Upload ROM
+          <input
+            class="sr-only"
+            type="file"
+            accept={romAccept}
+            on:change={handleRomUpload}
+          />
+        </label>
+
+        {#if romInfo}
+          <span class="text-sm">
+            <b>{romInfo.name}</b>
+            <span class="opacity-60">({romInfo.sizeLabel})</span>
+          </span>
+        {/if}
+
+        {#if romError}
+          <span class="text-sm font-bold text-red-500">{romError}</span>
+        {/if}
+      </div>
+
+      <div class="grid gap-4 md:grid-cols-[14rem_1fr]">
+        <Input
+          rounded
+          placeholder="Seed"
+          maxlength={32}
+          bind:value={randomizerOptions.seed}
+        />
+
+        <p class="self-center text-xs leading-5 opacity-70">
+          ROM bytes stay local in this browser. The tracker stores the selected
+          options and ROM fingerprint with the run.
+        </p>
+      </div>
+
+      <div class="grid gap-4 md:grid-cols-2">
+        {#each randomizerOptionGroups as group}
+          <fieldset class="grid gap-3 border-t-2 border-gray-200 pt-3 dark:border-gray-700">
+            <legend class="pr-3 font-bold">{group.name}</legend>
+
+            {#each group.options as option}
+              <label class="grid gap-1 text-xs font-bold uppercase">
+                {option.label}
+                <select
+                  class="h-10 rounded-lg border-2 border-gray-200 bg-white px-3 text-sm normal-case tracking-normal text-gray-800 transition focus:border-gray-700 focus:outline-none dark:border-gray-600 dark:bg-gray-950 dark:text-gray-100 dark:focus:border-gray-200"
+                  value={randomizerOptions[option.id]}
+                  on:change={setRandomizerOption(option.id)}
+                >
+                  {#each option.choices as [value, label]}
+                    <option {value}>{label}</option>
+                  {/each}
+                </select>
+              </label>
+            {/each}
+          </fieldset>
+        {/each}
+      </div>
+    </section>
+  {/if}
 
   <Tabs
     name="gens"

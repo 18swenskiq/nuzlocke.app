@@ -70,6 +70,10 @@
       img: '/leaders/unbound-mirskle'
     },
     {
+      name: 'Universal Pokemon Randomizer ZX team',
+      href: 'https://github.com/Ajarmar/universal-pokemon-randomizer-zx'
+    },
+    {
       name: 'Struedelmuffin, Wednesday and Rool',
       href: 'https://www.pokecommunity.com/showthread.php?t=412655'
     }

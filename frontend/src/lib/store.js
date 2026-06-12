@@ -82,7 +82,7 @@ export const getGameStore = (id) => {
 }
 
 export const createGame =
-  (name, game, initData = '{}') =>
+  (name, game, initData = '{}', meta = {}) =>
     (payload) => {
       if (!browser) return
 
@@ -97,7 +97,8 @@ export const createGame =
         created: +new Date(),
         name,
         game,
-        settings: settingsDefault
+        settings: meta.settings || settingsDefault,
+        randomizer: meta.randomizer
       })
 
       localStorage.setItem(IDS.game(id), initData)
@@ -263,7 +264,7 @@ const _parse = (gameData) =>
     .split(',')
     .filter((i) => i.length)
     .map((i) => i.split('|'))
-    .reduce((acc, [id, time, name, game, settings, attempts = 1]) => {
+    .reduce((acc, [id, time, name, game, settings, attempts = 1, randomizer]) => {
       const [created, updated] = time.split('>')
       return {
         ...acc,
@@ -274,7 +275,8 @@ const _parse = (gameData) =>
           name: decodeURIComponent(name),
           game,
           settings,
-          attempts
+          attempts,
+          ...(randomizer ? { randomizer: decodeMetadata(randomizer) } : {})
         }
       }
     }, {})
@@ -287,7 +289,7 @@ export const parse =
       cb(_parse(gameData))
 
 export const format = (saveData) =>
-  [
+  trimTrailingEmpty([
     saveData.id,
     saveData.updated
       ? saveData.created + '>' + saveData.updated
@@ -295,8 +297,27 @@ export const format = (saveData) =>
     encodeURIComponent(saveData.name),
     saveData.game,
     saveData.settings,
-    +saveData.attempts || 1
-  ].join('|')
+    +saveData.attempts || 1,
+    saveData.randomizer ? encodeMetadata(saveData.randomizer) : ''
+  ]).join('|')
+
+const trimTrailingEmpty = (items) => {
+  let end = items.length
+  while (end > 0 && !items[end - 1]) end--
+  return items.slice(0, end)
+}
+
+const encodeMetadata = (metadata) =>
+  encodeURIComponent(JSON.stringify(metadata || {}))
+
+const decodeMetadata = (metadata) => {
+  try {
+    return JSON.parse(decodeURIComponent(metadata))
+  } catch (e) {
+    console.error(e)
+    return null
+  }
+}
 
 export const summarise =
   (cb = (_) => { }) =>

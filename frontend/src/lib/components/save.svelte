@@ -7,7 +7,8 @@
     name,
     game,
     attempts = -1,
-    settings = settingsDefault
+    settings = settingsDefault,
+    randomizer = null
 
   import { fade } from 'svelte/transition'
   import {
@@ -21,7 +22,7 @@
   import day from '$lib/utils/date'
 
   import { NuzlockeStates } from '$lib/data/states'
-  import { Bin, Download } from '$icons'
+  import { Bin, Dice, Download } from '$icons'
   import { Icon, PIcon, IconButton, Logo as Picture } from '$c/core'
   import { Expanded as Games } from '$lib/data/games'
   import { IMG } from '$lib/utils/rewrites'
@@ -54,7 +55,8 @@
       id,
       settings,
       created,
-      updated
+      updated,
+      ...(randomizer ? { randomizer } : {})
     }
 
     downloadAnchor.setAttribute('href', saveFileDataUrl(meta, gameData || '{}'))
@@ -108,6 +110,16 @@
             class="bg-transparent transition group-hover:bg-yellow-300 dark:text-gray-50 dark:group-hover:text-gray-900"
             >{last}</mark
           >
+        {/if}
+
+        {#if randomizer}
+          <span
+            class="ml-2 inline-flex items-center gap-1 text-xs font-bold uppercase text-orange-500"
+            title="Randomized run"
+          >
+            <Icon inline={true} class="fill-current" icon={Dice} />
+            Randomized
+          </span>
         {/if}
       </h3>
 

@@ -71,6 +71,9 @@
     return route
   }
 
+  const readRandomizedRoute = (data) =>
+    data?.__randomizer?.route || data?.__randomizer?.results?.route
+
   onMount(() => {
     parse((saves) => {
       if (!browser) return
@@ -93,7 +96,7 @@
     new Promise((resolve, reject) => {
       try {
         console.time('setup')
-        const [, key, id] = readdata()
+        const [initialGameData, key, id] = readdata()
         if (browser && !id) return (window.location = '/')
 
         if (!key || !Games[key]) {
@@ -102,18 +105,27 @@
 
         gameStore = getGameStore(id)
         gameKey = key
+        gameData = initialGameData || {}
 
         let setupFinished = false
+        const randomizedRoute = readRandomizedRoute(gameData)
 
-        fetchRoute(Games[key].pid).then((r) => {
+        if (randomizedRoute?.length) {
+          route = randomizedRoute
           setupFinished = true
           console.timeEnd('setup')
-          resolve(r)
-        }).catch((err) => {
-          setupFinished = true
-          console.error('[setup] fetchRoute failed:', err)
-          reject(err)
-        })
+          resolve(route)
+        } else {
+          fetchRoute(Games[key].pid).then((r) => {
+            setupFinished = true
+            console.timeEnd('setup')
+            resolve(r)
+          }).catch((err) => {
+            setupFinished = true
+            console.error('[setup] fetchRoute failed:', err)
+            reject(err)
+          })
+        }
 
         gameStore.subscribe(
           read((game) => {

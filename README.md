@@ -69,6 +69,14 @@ include the modifications, e.g. `,,100` will modify the defense to
 
 You can find extensive examples of these in the [Nuzlocke.data](https://github.com/domtronn/nuzlocke.data) project.
 
+### Randomized runs
+
+Custom randomized run support is designed around metadata produced by
+[Universal Pokemon Randomizer ZX](https://github.com/Ajarmar/universal-pokemon-randomizer-zx).
+The tracker stores randomizer option snapshots and ROM fingerprints with saves,
+so generated encounter and trainer data can be attached to a run without storing
+ROM files in normal save data.
+
 
 ### Alternatives
 
