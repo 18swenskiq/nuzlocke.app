@@ -163,7 +163,12 @@ export const getGame = (id) =>
   )
 
 export const readTeam = (data) => {
-  return (data.__team || []).filter((i) => i)
+  return (data.__team || []).filter(
+    (i) =>
+      i &&
+      data?.[i]?.pokemon &&
+      NuzlockeGroups.Available.includes(data[i].status)
+  )
 }
 
 export const readTeams = (data) => {
@@ -234,7 +239,7 @@ export const getTeams = (cb = () => { }) =>
     getGameStore(gameId).subscribe(
       read((data) => {
         cb({
-          team: data.__team || [],
+          team: readTeam(data),
           teams: data.__teams || []
         })
       })
@@ -297,6 +302,7 @@ export const summarise =
   (cb = (_) => { }) =>
     ({ __starter, __custom, __team = [], __teams, ...data }) => {
       const pkmn = Object.values(data)
+      const team = readTeam({ ...data, __team })
       cb({
         available: pkmn.filter(
           (i) => i?.pokemon && NuzlockeGroups.Available.includes(i?.status)
@@ -304,7 +310,7 @@ export const summarise =
         deceased: pkmn.filter(
           (i) => i?.pokemon && NuzlockeGroups.Dead.includes(i?.status)
         ),
-        team: __team.map((id) => data?.[id]?.pokemon).filter((i) => i)
+        team: team.map((id) => data?.[id]?.pokemon).filter((i) => i)
       })
     }
 
