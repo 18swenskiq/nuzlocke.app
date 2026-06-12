@@ -334,6 +334,19 @@
       "moves": "pregen5"
     }
   },
+  "ptk": {
+    "pid": "ptk",
+    "lid": "ptk",
+    "logo": "/logos/platinum-logo",
+    "title": "Platinum Kaizo",
+    "gen": "romhack",
+    "supported": true,
+    "region": "sinnoh",
+    "filter": {
+      "types": "pregen6",
+      "moves": "pregen5"
+    }
+  },
   "d": {
     "pid": "d",
     "lid": "dp",
