@@ -37,8 +37,8 @@ teavm {
     wasmGC {
         mainClass = 'app.nuzlocke.randomizer.web.BrowserRandomizerMain'
         targetFileName = 'uprzx.wasm'
-        outputDir = file('../../frontend/static/randomizer/generated')
-        relativePathInOutputDir = ''
+        outputDir = file('../../frontend/static/randomizer')
+        relativePathInOutputDir = 'generated'
         copyRuntime = true
         modularRuntime = true
         obfuscated = false
