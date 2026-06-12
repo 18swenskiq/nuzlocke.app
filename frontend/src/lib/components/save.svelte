@@ -21,10 +21,11 @@
   import day from '$lib/utils/date'
 
   import { NuzlockeStates } from '$lib/data/states'
-  import { Bin, Download, Share } from '$icons'
+  import { Bin, Download } from '$icons'
   import { Icon, PIcon, IconButton, Logo as Picture } from '$c/core'
   import { Expanded as Games } from '$lib/data/games'
   import { IMG } from '$lib/utils/rewrites'
+  import { saveFileDataUrl, saveFileName } from '$lib/services/save-file'
 
   let team, available, deceased
   getGame(id).subscribe(
@@ -56,13 +57,8 @@
       updated
     }
 
-    const data =
-      `text/json;charset=utf-8,` +
-      encodeURIComponent(
-        JSON.stringify({ __meta: meta, ...JSON.parse(gameData || '{}') })
-      )
-    downloadAnchor.setAttribute('href', 'data:' + data)
-    downloadAnchor.setAttribute('download', `Nuzlocke Tracker - ${name}.nzsav`)
+    downloadAnchor.setAttribute('href', saveFileDataUrl(meta, gameData || '{}'))
+    downloadAnchor.setAttribute('download', saveFileName(name))
   }
 
   $: date = day(+created).format('Do of MMMM')
@@ -159,13 +155,5 @@
         on:click={ondownload}
       />
     </a>
-
-    <IconButton
-      rounded
-      color="yellow"
-      src={Share}
-      title="This feature is temporarily disabled"
-      disabled
-    />
   </div>
 </div>

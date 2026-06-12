@@ -38,6 +38,7 @@ export { default as Caret } from '@iconify-icons/ph/caret-down-fill' // Previous
 export { default as CaretRight } from '@iconify-icons/ph/caret-right-fill' // Previous RightArr
 export { default as Pip } from '@iconify-icons/ph/circle-fill'
 export { default as Check } from '@iconify-icons/ph/circle-wavy-check-fill'
+export { default as CloudUpload } from '@iconify-icons/ph/cloud-arrow-up-fill'
 export { default as Cookie } from '@iconify-icons/ph/cookie-fill'
 export { default as Desktop } from '@iconify-icons/ph/desktop'
 export { default as Mobile } from '@iconify-icons/ph/device-mobile'
@@ -91,6 +92,7 @@ export { default as Team } from '@iconify-icons/ri/team-fill'
 export { default as Analysis } from '@iconify-icons/ri/test-tube-fill'
 export { default as Missed } from '@iconify-icons/ri/windy-line'
 export { default as Coffee } from '@iconify-icons/simple-icons/buymeacoffee'
+export { default as Google } from '@iconify-icons/simple-icons/google'
 // Support & compliance icons
 export { default as Discord } from '@iconify-icons/simple-icons/discord'
 export { default as GitHub } from '@iconify-icons/simple-icons/github'

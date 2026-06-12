@@ -1,23 +1,23 @@
-<script context="module">
-  export const prerender = true
-</script>
-
 <script>
   import { PixelatedContainer } from '$lib/components/containers'
-  const clear = _ => {
-    if (!confirm('This will delete all of your saved data and could degrade app performance. Are you sure you want to continue?'))
+
+  const clear = (_) => {
+    if (
+      !confirm(
+        'This will delete all of your saved data and could degrade app performance. Are you sure you want to continue?'
+      )
+    )
       return
 
-    Object
-      .keys(window.localStorage)
-      .filter(i => i.startsWith('nuzlocke'))
-      .forEach(it => window.localStorage.removeItem(it))
+    Object.keys(window.localStorage)
+      .filter((i) => i.startsWith('nuzlocke'))
+      .forEach((it) => window.localStorage.removeItem(it))
 
-    // Clear all serviceworkers
-    navigator.serviceWorker.getRegistrations().then(function(registrations) {
-      for(let registration of registrations) {
+    navigator.serviceWorker.getRegistrations().then(function (registrations) {
+      for (let registration of registrations) {
         registration.unregister()
-      } })
+      }
+    })
 
     alert('All data deleted successfully')
   }
@@ -27,80 +27,89 @@
   <title>Nuzlocke Tracker | Privacy Policy</title>
 </svelte:head>
 
-<main class='container mx-auto text-gray-800 pb-24 pt-8 sm:pt-0 dark:text-gray-300'>
-  <div class='mx-auto pb-16 sm:pb-12 mx-4'>
-    <PixelatedContainer className='my-16 py-6 px-8 overflow-x-hidden mx-auto max-w-prose'>
-      <h1 class='text-2xl'>Privacy Policy</h1>
-      <p class='text-xs -mt-px'>Last updated: November 7th, 2021</p>
+<main class="container mx-auto pb-24 pt-8 text-gray-800 dark:text-gray-300 sm:pt-0">
+  <div class="mx-4 mx-auto pb-16 sm:pb-12">
+    <PixelatedContainer className="my-16 py-6 px-8 overflow-x-hidden mx-auto max-w-prose">
+      <h1 class="text-2xl">Privacy Policy</h1>
+      <p class="text-xs -mt-px">Last updated: June 12th, 2026</p>
 
       <p>
-        No personal information is required to access or use the <b>Pokémon Nulocke Tracker</b>.
-        We do not use any ad tracking
+        No personal information is required to access or use the <b>Pokemon
+        Nuzlocke Tracker</b> without cloud saves. We do not use any ad tracking.
       </p>
 
       <p>
         We utilise
         the <a href="https://developer.mozilla.org/en-US/docs/Web/API/Window/localStorage"><strong>Window.localStorage</strong></a>
-        browser API to store persistent data about Your save files and
-        Pokémon. By using this site, You are agreeing to store this information
-        in your browser.
+        browser API to store persistent data about your save files and Pokemon.
+        When you sign in with Google, your browser also stores OAuth session
+        tokens so the app can sync your saves.
       </p>
 
       <p>
-        This information is never shared or analysed by Us or Third Parties
-        and is not accessible beyond the use of the <b>Pokémon Nulocke
-          Tracker</b>.
+        If you sign in, your save files are stored in this application's AWS S3
+        bucket under your authenticated user ID. Google provides your account
+        identity to Amazon Cognito for sign-in, and the tracker uses that
+        identity only to read and write your saves.
       </p>
 
       <p>
-        The data stored is <strong>essential</strong> for site functionality, and is stored in under the following keys;
+        The data stored is <strong>essential</strong> for site functionality,
+        and is stored under the following keys:
       </p>
 
-      <table class='my-6 table-fixed overflow-x-scroll'>
-        <thead class='border-b border-white'>
+      <table class="my-6 table-fixed overflow-x-scroll">
+        <thead class="border-b border-white">
           <tr>
-            <th> Key </th>
-            <th> Purpose </th>
-            <th> Example </th>
+            <th>Key</th>
+            <th>Purpose</th>
+            <th>Example</th>
           </tr>
         </thead>
         <tbody>
-        <tr>
-          <td><code>nuzlocke.consent</code></td>
-          <td>Whether you have previously consented to data storage</td>
-          <td><code>true</code></td>
-        </tr>
-        <tr>
-          <td><code>nuzlocke</code></td>
-          <td>The identifier for the current / active save file</td>
-          <td><code>ccf2288e-fb30-4a80-960e-ef1be4f42018</code></td>
-        </tr>
-        <tr>
-          <td><code>nuzlocke.theme</code></td>
-          <td>Your preference for a Dark or Light theme</td>
-          <td><code>dark</code></td>
-        </tr>
-        <tr>
-          <td><code>nuzlocke.saves</code></td>
-          <td>A pipe and comma separated list of saved games</td>
-          <td><code>id|timestamp|name|gameId</code></td>
-        </tr>
-        <tr>
-          <td><code>nuzlocke.[GAMEID]</code></td>
-          <td>A JSON representation of your Pokémon & Starter type</td>
-          <td><code>{JSON.stringify({"__starter":"fire", "Route 1":{"id":0,"pokemon":"charmander", "status":1}})}</code></td>
-        </tr>
+          <tr>
+            <td><code>nuzlocke.auth.tokens</code></td>
+            <td>Your cloud save sign-in session tokens</td>
+            <td><code>{JSON.stringify({ id_token: '...', refresh_token: '...' })}</code></td>
+          </tr>
+          <tr>
+            <td><code>nuzlocke.consent</code></td>
+            <td>Whether you have previously consented to data storage</td>
+            <td><code>true</code></td>
+          </tr>
+          <tr>
+            <td><code>nuzlocke</code></td>
+            <td>The identifier for the current / active save file</td>
+            <td><code>ccf2288e-fb30-4a80-960e-ef1be4f42018</code></td>
+          </tr>
+          <tr>
+            <td><code>nuzlocke.theme</code></td>
+            <td>Your preference for a Dark or Light theme</td>
+            <td><code>dark</code></td>
+          </tr>
+          <tr>
+            <td><code>nuzlocke.saves</code></td>
+            <td>A pipe and comma separated list of saved games</td>
+            <td><code>id|timestamp|name|gameId</code></td>
+          </tr>
+          <tr>
+            <td><code>nuzlocke.[GAMEID]</code></td>
+            <td>A JSON representation of your Pokemon and starter type</td>
+            <td><code>{JSON.stringify({ __starter: 'fire', 'Route 1': { id: 0, pokemon: 'charmander', status: 1 } })}</code></td>
+          </tr>
         </tbody>
       </table>
 
       <p>
-        You can clear all your stored data by <button on:click={clear} class='hover:cursor-pointer underline' title='Clear all stored data'>Clicking Here</button>.
+        You can clear all your locally stored data by <button on:click={clear} class="underline hover:cursor-pointer" title="Clear all stored data">clicking here</button>.
+        Signed-in cloud saves are stored server-side and are not deleted by this
+        browser action.
       </p>
 
-      <h2 class='text-xl mb-2'>Changes to this Privacy Policy</h2>
+      <h2 class="mb-2 text-xl">Changes to this Privacy Policy</h2>
       <p>
-        We may update Our Privacy Policy from time to time. We will notify
-        You of any changes by posting the new Privacy Policy on this page.
+        We may update our Privacy Policy from time to time. We will notify you
+        of any changes by posting the new Privacy Policy on this page.
       </p>
 
       <p>
@@ -109,12 +118,14 @@
         posted on this page.
       </p>
 
-      <h2 class='text-xl mb-2'>Contact Us</h2>
+      <h2 class="mb-2 text-xl">Contact Us</h2>
       <p>
-        If you have any questions about this Privacy Policy, You can contact us:
+        If you have any questions about this Privacy Policy, you can contact us:
       </p>
       <ul>
-        <li>By email: <a class="hover:text-white transition-colors" href="mailto:nuzlocke.tracker@gmail.com">nuzlocke.tracker@gmail.com</a></li>
+        <li>
+          By email: <a class="transition-colors hover:text-white" href="mailto:nuzlocke.tracker@gmail.com">nuzlocke.tracker@gmail.com</a>
+        </li>
       </ul>
     </PixelatedContainer>
   </div>
@@ -122,16 +133,40 @@
 
 <style lang="postcss">
   td + td + td,
-  th + th + th { display: none; }
-  @media (min-width: 640px) {
-    td + td + td,
-    th + th + th { display: block; }
+  th + th + th {
+    display: none;
   }
 
-  p { margin-bottom: 16px; }
-  tr, thead { font-size: .75rem; }
-  thead { text-align: left; }
-  tr code { font-size: 1rem; }
-  a { text-decoration: underline; transition: all 0.3s ease; }
-  a:hover { color: white; }
+  @media (min-width: 640px) {
+    td + td + td,
+    th + th + th {
+      display: block;
+    }
+  }
+
+  p {
+    margin-bottom: 16px;
+  }
+
+  tr,
+  thead {
+    font-size: 0.75rem;
+  }
+
+  thead {
+    text-align: left;
+  }
+
+  tr code {
+    font-size: 1rem;
+  }
+
+  a {
+    text-decoration: underline;
+    transition: all 0.3s ease;
+  }
+
+  a:hover {
+    color: white;
+  }
 </style>

@@ -2,11 +2,16 @@
   import '../app.postcss'
 
   import { page } from '$app/stores'
-  import { afterUpdate } from 'svelte'
+  import { afterUpdate, onMount } from 'svelte'
   import { CookieBanner, Footer } from '$c/navs'
 
   import createErrorModal from '$utils/error-handler'
   import deferStyles from '$lib/utils/defer-styles'
+  import { initCloudSync } from '$lib/services/cloud-saves'
+
+  onMount(() => {
+    initCloudSync()
+  })
 
   afterUpdate(async () => {
     deferStyles('/assets/pokemon.css')

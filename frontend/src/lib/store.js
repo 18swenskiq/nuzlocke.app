@@ -274,6 +274,8 @@ const _parse = (gameData) =>
       }
     }, {})
 
+export const parseSavedGames = _parse
+
 export const parse =
   (cb = () => { }) =>
     (gameData) =>

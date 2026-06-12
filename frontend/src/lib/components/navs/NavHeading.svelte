@@ -5,6 +5,7 @@
   import { Home } from '$icons'
 
   import ThemeToggle from '$lib/components/theme-toggle.svelte'
+  import AuthControl from './AuthControl.svelte'
 
 </script>
 
@@ -23,7 +24,10 @@
       <span />
     {/if}
 
-    <ThemeToggle className=mt-2 />
+    <span class="inline-flex items-center gap-x-2">
+      <AuthControl compact />
+      <ThemeToggle className=mt-2 />
+    </span>
   </div>
 </nav>
 

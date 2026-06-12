@@ -1,24 +1,13 @@
 <script>
-  import TextCode from './TextCode.svelte'
   import { getContext } from 'svelte'
 
   import { fly } from 'svelte/transition'
 
   import { updateGame, savedGames, IDS } from '$lib/store'
+  import { parseSaveFile } from '$lib/services/save-file'
 
-  import { SHARE } from '$utils/rewrites'
   import { Icon, IconButton, Loader } from '$c/core'
-  import {
-    X,
-    QR,
-    QRCode,
-    Error,
-    Share,
-    Floppy,
-    Transfer,
-    Mobile,
-    Desktop
-  } from '$icons'
+  import { X, Error, File, Floppy } from '$icons'
 
   const importsave = (save, data) => {
     window.localStorage.setItem(IDS.game(save.id), JSON.stringify(data))
@@ -33,16 +22,6 @@
     setTimeout(() => (error = false), 3500)
   }
 
-  const handlescan = (e) => {
-    loading = true
-    fetch(SHARE + '/' + e.detail.code)
-      .then((res) => res.json())
-      .then(({ data, save }) => {
-        importsave(save, data)
-      })
-      .catch(flasherror)
-  }
-
   const { close } = getContext('simple-modal')
   let loading = false
   let files, error
@@ -52,8 +31,8 @@
     let reader = new FileReader()
     reader.onload = function (e) {
       try {
-        const { __meta, ...gameData } = JSON.parse(e.currentTarget.result)
-        importsave(__meta, gameData)
+        const { save, data } = parseSaveFile(e.currentTarget.result)
+        importsave(save, data)
       } catch (e) {
         flasherror()
       }
@@ -75,62 +54,20 @@
   />
 
   <h1>
-    <Icon inline={true} icon={QR} class="-ml-4 mr-2 fill-current md:-ml-6" />
+    <Icon inline={true} icon={Floppy} class="-ml-4 mr-2 fill-current md:-ml-6" />
     Import a save
   </h1>
 
   {#if !loading}
     <p>
-      Enter the <b>Share</b> code, scan the, <b>QR code</b> or upload a
-      <b>.nzsav</b> file to transfer save data.
+      Upload a <b>.nzsav</b> file exported from Nuzlocke Tracker.
     </p>
 
     <div
       class="-ml-4 inline-flex scale-75 transform items-center text-4xl md:my-0 md:scale-100"
     >
-      <Icon inline={true} height="0.9em" icon={Mobile} class="fill-current" />
-      <Icon
-        inline={true}
-        height="0.6em"
-        icon={Transfer}
-        class="mr-2 ml-1 fill-current"
-      />
-      <Icon inline={true} icon={Desktop} class="fill-current" />
+      <Icon inline={true} icon={File} class="fill-current" />
     </div>
-
-    <TextCode on:code={handlescan} />
-
-    <ol>
-      <li>
-        Open your <a href="/saves"
-          ><mark
-            >Save files <Icon
-              inline={true}
-              height="0.9em"
-              icon={Floppy}
-              class="fill-current"
-            /></mark
-          ></a
-        > on your first device
-      </li>
-      <li>
-        Select <mark
-          >Share <Icon inline={true} icon={Share} class="fill-current" /></mark
-        > on the save to transfer
-      </li>
-      <li>
-        Enter the <mark>Code</mark> or scan the
-        <mark
-          >QR code <Icon
-            inline={true}
-            icon={QRCode}
-            class="fill-current"
-          /></mark
-        >
-      </li>
-    </ol>
-
-    <p class="or text-gray-500"><i>or</i></p>
 
     <label
       class="mx-4 -mb-4 block w-full cursor-pointer rounded-lg bg-gray-900 px-4 py-2 text-center text-sm font-medium text-gray-400 hover:text-yellow-500 hover:ring-2 hover:ring-yellow-500"
@@ -178,37 +115,11 @@
   p {
     @apply w-full text-center text-sm leading-5;
   }
-  ol {
-    @apply ml-2 mr-2 list-outside list-decimal text-sm leading-4;
-  }
-  li {
-    @apply mb-2 md:mb-1 md:-ml-2 md:pl-2;
-  }
-  mark {
-    @apply mx-px inline-flex items-center gap-x-1 bg-yellow-200 px-1 font-bold leading-5 transition;
-  }
-  a mark:hover {
-    @apply cursor-pointer bg-yellow-400;
-  }
-
   section {
     @apply mx-auto flex max-w-md flex-col items-center gap-y-4 overflow-hidden rounded-xl bg-gray-50 py-10 px-6 text-gray-800 md:px-12;
   }
 
   :global(.dark) section {
     @apply bg-gray-800 text-white;
-  }
-
-  p.or {
-    @apply relative w-3/4 px-10;
-  }
-
-  p.or::before {
-    content: '';
-    @apply absolute left-0 top-1/2 z-0 h-px w-full translate-y-px bg-gray-500 px-8;
-  }
-
-  p.or i {
-    @apply relative z-10 bg-gray-800 px-2 py-2;
   }
 </style>

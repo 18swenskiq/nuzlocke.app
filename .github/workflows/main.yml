@@ -59,7 +59,22 @@ jobs:
 
       - name: Deploy Stack
         timeout-minutes: 25
+        env:
+          GOOGLE_OAUTH_CLIENT_ID: ${{ secrets.GOOGLE_OAUTH_CLIENT_ID }}
+          GOOGLE_OAUTH_CLIENT_SECRET: ${{ secrets.GOOGLE_OAUTH_CLIENT_SECRET }}
         run: |
+          set -e
+
+          if [ -z "$GOOGLE_OAUTH_CLIENT_ID" ] || [ -z "$GOOGLE_OAUTH_CLIENT_SECRET" ]; then
+            echo "Missing GOOGLE_OAUTH_CLIENT_ID or GOOGLE_OAUTH_CLIENT_SECRET GitHub secrets"
+            exit 1
+          fi
+
+          CDK_PARAMETERS=(
+            --parameters "GoogleOAuthClientId=${GOOGLE_OAUTH_CLIENT_ID}"
+            --parameters "GoogleOAuthClientSecret=${GOOGLE_OAUTH_CLIENT_SECRET}"
+          )
+
           # Check if the stack already exists and is complete
           STACK_STATUS=$(aws cloudformation describe-stacks --stack-name NuzlockeAppStack --query "Stacks[0].StackStatus" --output text 2>/dev/null || echo "DOES_NOT_EXIST")
 
@@ -67,7 +82,7 @@ jobs:
 
           if [ "$STACK_STATUS" = "CREATE_COMPLETE" ] || [ "$STACK_STATUS" = "UPDATE_COMPLETE" ] || [ "$STACK_STATUS" = "UPDATE_ROLLBACK_COMPLETE" ]; then
             echo "Stack exists. Deploying update directly..."
-            cdk deploy NuzlockeAppStack --require-approval never
+            cdk deploy NuzlockeAppStack --require-approval never "${CDK_PARAMETERS[@]}"
             exit 0
           elif [ "$STACK_STATUS" = "CREATE_IN_PROGRESS" ] || [ "$STACK_STATUS" = "UPDATE_IN_PROGRESS" ]; then
             echo "Stack is currently in progress. Monitoring for completion..."
@@ -116,7 +131,7 @@ jobs:
           echo "Starting deployment (certificate DNS validation may be required)..."
 
           # Start CDK deploy in background to capture DNS validation details
-          cdk deploy NuzlockeAppStack --require-approval never > cdk_deploy.log 2>&1 &
+          cdk deploy NuzlockeAppStack --require-approval never "${CDK_PARAMETERS[@]}" > cdk_deploy.log 2>&1 &
           CDK_PID=$!
 
           echo "CDK deployment started with PID: $CDK_PID"

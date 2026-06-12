@@ -53,9 +53,11 @@
 
   import ThemeToggle from '$lib/components/theme-toggle.svelte'
   import { Icon, Logo, Button, Popover } from '$lib/components/core'
-  import { Box, Save, Game, Grave, Caret, CaretRight, Dots } from '$icons'
+  import { Box, Save, Game, Grave, Caret, CaretRight } from '$icons'
   import { Expanded as Games } from '$lib/data/games'
   import { IMG } from '$lib/utils/rewrites'
+  import AuthControl from './AuthControl.svelte'
+  import CloudSyncIndicator from './CloudSyncIndicator.svelte'
 
   const pages = [
     { name: 'Game', link: '/game', icon: Game },
@@ -161,7 +163,9 @@
 
     {#if $page.url.pathname !== '/graveyard'}<MiniTeamController />{/if}
 
-    <span class="relative inline-flex">
+    <span class="relative inline-flex items-center gap-x-1">
+      <CloudSyncIndicator />
+      <AuthControl compact />
       <ThemeToggle />
 
       {#each pages as p}
