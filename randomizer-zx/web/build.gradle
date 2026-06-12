@@ -1,0 +1,54 @@
+plugins {
+    id 'java'
+    id 'org.teavm' version '0.14.1'
+}
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(17)
+    }
+}
+
+sourceSets {
+    main {
+        java {
+            srcDir 'src/main/java'
+            srcDir '../upstream/src'
+            exclude 'launcher/**'
+            exclude 'com/dabomstew/pkrandom/newgui/**'
+            exclude 'com/dabomstew/pkrandom/cli/**'
+            exclude 'com/dabomstew/pkrandom/localtests/**'
+            exclude 'com/dabomstew/pkrandom/Utils.java'
+        }
+        resources {
+            srcDir '../upstream/src'
+            include 'com/dabomstew/pkrandom/config/**'
+            include 'com/dabomstew/pkrandom/patches/**'
+            include 'com/dabomstew/pkrandom/newgui/Bundle.properties'
+        }
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+}
+
+teavm {
+    wasmGC {
+        mainClass = 'app.nuzlocke.randomizer.web.BrowserRandomizerMain'
+        targetFileName = 'uprzx.wasm'
+        outputDir = file('../../frontend/static/randomizer/generated')
+        relativePathInOutputDir = ''
+        copyRuntime = true
+        modularRuntime = true
+        obfuscated = false
+        sourceMap = true
+        processMemory = 4096
+        minDirectBuffersSize = 256
+        preservedClasses.add('app.nuzlocke.randomizer.web.BrowserRandomizerAdapter')
+    }
+}
+
+tasks.named('assemble') {
+    dependsOn tasks.named('buildWasmGC')
+}

@@ -8,3 +8,20 @@ masters
 /scripts
 .log
 frontend/download-assets.mjs
+
+# Local ROMs, saves, and randomizer build artifacts
+*.gb
+*.gbc
+*.gba
+*.nds
+*.3ds
+*.cia
+*.cxi
+*.cci
+*.sav
+*.sgm
+*.rndp
+/randomizer-zx/.gradle
+/randomizer-zx/build
+/randomizer-zx/web/build
+/frontend/static/randomizer/generated

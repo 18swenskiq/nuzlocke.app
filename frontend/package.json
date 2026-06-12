@@ -5,7 +5,9 @@
   "scripts": {
     "lint": "eslint src",
     "dev": "vite dev",
-    "build": "node scripts/generate-css.mjs && vite build",
+    "build": "npm run build:randomizer && npm run build:site",
+    "build:site": "node scripts/generate-css.mjs && vite build",
+    "build:randomizer": "node scripts/build-randomizer.mjs",
     "preview": "vite preview",
     "test:randomiser": "for i in `cat src/lib/data/games.json | jq 'keys[]' -r`; do curl -s http://localhost:5173/api/route/generate/$i.json; done",
     "test:pokemon": "for i in `cat src/lib/data/games.json | jq 'keys[]' -r`; do curl -s http://localhost:5173/api/pokemon/$i.json; done",
@@ -80,5 +82,5 @@
   "main": "index.js",
   "repository": "https://github.com/domtronn/dc-nuzlocke",
   "author": "domtronn <dgc336@gmail.com>",
-  "license": "MIT"
+  "license": "GPL-3.0-or-later"
 }

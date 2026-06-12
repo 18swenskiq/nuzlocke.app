@@ -3,7 +3,8 @@ export const UPRZX_PROJECT = {
   name: 'Universal Pokemon Randomizer ZX',
   repository: 'https://github.com/Ajarmar/universal-pokemon-randomizer-zx',
   license: 'GPL-3.0-or-later',
-  version: '4.6.1'
+  version: '4.6.1',
+  upstreamCommit: '7f00eb8'
 }
 
 export const randomizerDefaults = {
@@ -165,26 +166,47 @@ export const randomizerSettingsDefault = (settings) =>
   `${settings.slice(0, 1)}0${settings.slice(2)}`
 
 export const buildRandomizerManifest = ({
+  capabilities,
   game,
   gameKey,
   options,
+  outputMode = 'single-file',
   rom,
-  runId
+  runId,
+  settingsString = null
 }) => ({
   schemaVersion: 1,
   status: 'configured',
   runId,
   engine: {
     ...UPRZX_PROJECT,
-    adapter: 'pending'
+    adapter: 'web-adapter-0.1.0'
   },
   game: {
     key: gameKey,
     title: game?.title,
     pid: game?.pid
   },
+  settings: {
+    string: settingsString,
+    ui: options
+  },
   options,
   rom,
+  results: null,
+  output: {
+    mode: outputMode,
+    archiveFormat: outputMode === 'layeredfs-archive' ? 'tar' : null,
+    browserPath: capabilities?.browserPath,
+    capabilities: capabilities
+      ? {
+          wasm: capabilities.wasm,
+          opfs: capabilities.opfs,
+          blobDownload: capabilities.blobDownload,
+          fileSystemAccess: capabilities.fileSystemAccess,
+          directDirectoryOutput: capabilities.directDirectoryOutput
+        }
+      : null
+  },
   created: +new Date()
 })
-

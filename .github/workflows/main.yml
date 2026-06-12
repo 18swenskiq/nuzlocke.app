@@ -30,6 +30,13 @@ jobs:
             ./cdk/package-lock.json
             ./frontend/package-lock.json
 
+      - name: Setup Java environment
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+
       - name: Install AWS CDK
         run: npm i -g aws-cdk
 

@@ -1,0 +1,40 @@
+Nuzlocke Tracker Notices
+========================
+
+This project is licensed as GPL-3.0-or-later. See LICENSE.
+
+Original Nuzlocke Tracker notice preserved from the previous BSD-3-Clause
+license:
+
+  Copyright (c) 2021, Diego Ballesteros
+  All rights reserved.
+
+  Redistribution and use in source and binary forms, with or without
+  modification, were permitted under the BSD 3-Clause License terms in the
+  project history before the GPL-3.0-or-later relicensing.
+
+Universal Pokemon Randomizer ZX
+-------------------------------
+
+The Universal Pokemon Randomizer ZX source is vendored in
+randomizer-zx/upstream from:
+
+  https://github.com/Ajarmar/universal-pokemon-randomizer-zx
+
+Pinned upstream release: v4.6.1
+Pinned upstream commit: 7f00eb8
+License: GPL-3.0-or-later
+
+Universal Pokemon Randomizer ZX is by Ajarmar, with significant contributions
+from darkeye and cleartonic, and is based on the Universal Pokemon Randomizer
+by Dabomstew.
+
+Pokemon and any associated names are trademarks and copyright Nintendo.
+
+Gradle Wrapper
+--------------
+
+The Gradle wrapper scripts and wrapper jar are from the Gradle project and are
+licensed under the Apache License, Version 2.0.
+
+  https://github.com/gradle/gradle

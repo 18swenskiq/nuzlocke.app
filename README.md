@@ -71,11 +71,21 @@ You can find extensive examples of these in the [Nuzlocke.data](https://github.c
 
 ### Randomized runs
 
-Custom randomized run support is designed around metadata produced by
+Custom randomized run support is designed around browser-local integration with
 [Universal Pokemon Randomizer ZX](https://github.com/Ajarmar/universal-pokemon-randomizer-zx).
-The tracker stores randomizer option snapshots and ROM fingerprints with saves,
-so generated encounter and trainer data can be attached to a run without storing
-ROM files in normal save data.
+The vendored upstream source lives in `randomizer-zx/upstream`, with adapter and
+browser build work in `randomizer-zx/web`. ROM files and generated ROM artifacts
+must remain local to the user's browser; save data and server manifests store
+only settings, fingerprints, logs, and extracted tracker data.
+
+The production frontend build runs the UPR-ZX TeaVM build first. Java 17 or
+newer is required for `npm run build`; use `npm run build:site` only when you
+need to test the Svelte site without rebuilding the randomizer runtime.
+
+### License
+
+This project is licensed as GPL-3.0-or-later. See `LICENSE` and `NOTICE` for
+the preserved Nuzlocke Tracker BSD notice and UPR-ZX attribution.
 
 
 ### Alternatives

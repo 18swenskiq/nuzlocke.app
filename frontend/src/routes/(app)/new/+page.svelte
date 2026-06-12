@@ -1,4 +1,5 @@
 <script>
+  import { onDestroy, onMount } from 'svelte'
   import { savedGames, createGame } from '$lib/store'
   import { ScreenContainer } from '$lib/components/containers'
 
@@ -21,6 +22,13 @@
   import { filterObj } from '$lib/utils/arr'
   import { shortuuid } from '$lib/utils/uuid'
   import { settingsDefault } from '$lib/components/Settings/_data'
+  import {
+    detectRandomizerCapabilities,
+    getDefaultOutputMode,
+    randomizerOutputModes,
+    summarizeCapabilities
+  } from '$lib/randomizer/capabilities'
+  import { createRandomizerClient } from '$lib/randomizer/client'
   import {
     buildRandomizerManifest,
     randomizerDefaults,
@@ -84,9 +92,33 @@
   let randomizeRun = false
   let romInfo = null
   let romError = ''
+  let updateFile = null
+  let updateInfo = null
+  let inspectingRom = false
+  let outputMode = 'single-file'
+  let randomizerCapabilities = null
+  let randomizerClient = null
+  let randomizerSchema = null
   let randomizerOptions = { ...randomizerDefaults }
 
-  const validRomExtensions = ['gb', 'gbc', 'gba', 'nds', '3ds', 'cia']
+  onMount(() => {
+    randomizerCapabilities = detectRandomizerCapabilities()
+    try {
+      randomizerClient = createRandomizerClient()
+      randomizerClient
+        .getSettingsSchema({})
+        .then((schema) => (randomizerSchema = schema))
+        .catch(() => {})
+    } catch (error) {
+      romError = error.message
+    }
+  })
+
+  onDestroy(() => {
+    randomizerClient?.destroy()
+  })
+
+  const validRomExtensions = ['gb', 'gbc', 'gba', 'nds', '3ds', 'cia', 'cxi', 'cci']
   const romAccept = validRomExtensions.map((ext) => `.${ext}`).join(',')
 
   const handleRomUpload = async (event) => {
@@ -102,13 +134,60 @@
       return
     }
 
-    romInfo = {
+    inspectingRom = true
+    try {
+      romInfo = randomizerClient
+        ? await randomizerClient.inspectRom({ rom: file, update: updateFile })
+        : await inspectRomLocally(file)
+      if (updateInfo && !romInfo.update) romInfo.update = updateInfo
+      outputMode = getDefaultOutputMode(romInfo, randomizerCapabilities)
+      if (randomizerClient) {
+        randomizerSchema = await randomizerClient.getSettingsSchema({ romInfo })
+      }
+    } catch (error) {
+      romError = error.message || 'Could not inspect ROM'
+      romInfo = null
+    } finally {
+      inspectingRom = false
+    }
+  }
+
+  const handleUpdateUpload = async (event) => {
+    const file = event.currentTarget.files?.[0]
+    updateFile = file
+    updateInfo = null
+
+    if (!file) return
+
+    updateInfo = {
+      name: file.name,
+      size: file.size,
+      sizeLabel: formatBytes(file.size),
+      extension: file.name.split('.').pop()?.toLowerCase(),
+      lastModified: file.lastModified,
+      sha256: await sha256(file)
+    }
+
+    if (romInfo) {
+      romInfo = {
+        ...romInfo,
+        update: updateInfo,
+        requiresLayeredFs: true
+      }
+      outputMode = getDefaultOutputMode(romInfo, randomizerCapabilities)
+    }
+  }
+
+  const inspectRomLocally = async (file) => {
+    const ext = file.name.split('.').pop()?.toLowerCase()
+    return {
       name: file.name,
       size: file.size,
       sizeLabel: formatBytes(file.size),
       extension: ext,
       lastModified: file.lastModified,
-      sha256: await sha256(file)
+      sha256: await sha256(file),
+      update: updateInfo
     }
   }
 
@@ -141,7 +220,9 @@
       runId: shortuuid(),
       game: selectedGame,
       gameKey,
+      capabilities: randomizerCapabilities,
       options: randomizerOptions,
+      outputMode,
       rom: romInfo
     })
 
@@ -173,7 +254,17 @@
     name: d.split(':')[0] || 'Normal'
   }))
   $: selectedGame = validGames[selected]
-  $: disabled = !gameName.length || !selected || (randomizeRun && !romInfo)
+  $: is3dsRom = ['3ds', 'cia', 'cxi', 'cci'].includes(romInfo?.extension)
+  $: availableOutputModes = (
+    randomizerCapabilities?.outputModes || randomizerOutputModes
+  ).filter((mode) => !romInfo?.extension || mode.extensions.includes(romInfo.extension))
+  $: if (romInfo?.requiresLayeredFs && outputMode === 'single-file') {
+    outputMode = randomizerCapabilities?.directDirectoryOutput
+      ? 'layeredfs-directory'
+      : 'layeredfs-archive'
+  }
+  $: disabled =
+    !gameName.length || !selected || (randomizeRun && (!romInfo || inspectingRom))
 </script>
 
 <svelte:head>
@@ -295,6 +386,10 @@
           </span>
         {/if}
 
+        {#if inspectingRom}
+          <span class="text-sm font-bold text-orange-500">Inspecting ROM</span>
+        {/if}
+
         {#if romError}
           <span class="text-sm font-bold text-red-500">{romError}</span>
         {/if}
@@ -311,11 +406,57 @@
         <p class="self-center text-xs leading-5 opacity-70">
           ROM bytes stay local in this browser. The tracker stores the selected
           options and ROM fingerprint with the run.
+          {#if randomizerCapabilities}
+            {summarizeCapabilities(randomizerCapabilities)}.
+          {/if}
         </p>
       </div>
 
+      {#if is3dsRom}
+        <div class="grid gap-4 md:grid-cols-[14rem_1fr]">
+          <label
+            class="inline-flex h-10 cursor-pointer items-center justify-center gap-2 rounded-lg border-2 border-gray-700 bg-gray-100 px-4 text-sm font-bold transition hover:border-orange-500 hover:text-orange-500 dark:border-gray-200 dark:bg-gray-900 dark:hover:border-orange-400 dark:hover:text-orange-400"
+          >
+            <Icon inline={true} icon={CloudUpload} class="fill-current" />
+            Game update
+            <input
+              class="sr-only"
+              type="file"
+              accept=".cia,.3ds,.cxi,.cci"
+              on:change={handleUpdateUpload}
+            />
+          </label>
+
+          <div class="grid gap-2 md:grid-cols-2">
+            <label class="grid gap-1 text-xs font-bold uppercase">
+              Output
+              <select
+                class="h-10 rounded-lg border-2 border-gray-200 bg-white px-3 text-sm normal-case tracking-normal text-gray-800 transition focus:border-gray-700 focus:outline-none dark:border-gray-600 dark:bg-gray-950 dark:text-gray-100 dark:focus:border-gray-200"
+                bind:value={outputMode}
+              >
+                {#each availableOutputModes as mode}
+                  <option
+                    value={mode.id}
+                    disabled={romInfo?.requiresLayeredFs && mode.id === 'single-file'}
+                  >
+                    {mode.label}
+                  </option>
+                {/each}
+              </select>
+            </label>
+
+            {#if updateInfo}
+              <p class="self-end text-sm">
+                <b>{updateInfo.name}</b>
+                <span class="opacity-60">({updateInfo.sizeLabel})</span>
+              </p>
+            {/if}
+          </div>
+        </div>
+      {/if}
+
       <div class="grid gap-4 md:grid-cols-2">
-        {#each randomizerOptionGroups as group}
+        {#each randomizerSchema?.groups || randomizerOptionGroups as group}
           <fieldset class="grid gap-3 border-t-2 border-gray-200 pt-3 dark:border-gray-700">
             <legend class="pr-3 font-bold">{group.name}</legend>
 
@@ -325,6 +466,7 @@
                 <select
                   class="h-10 rounded-lg border-2 border-gray-200 bg-white px-3 text-sm normal-case tracking-normal text-gray-800 transition focus:border-gray-700 focus:outline-none dark:border-gray-600 dark:bg-gray-950 dark:text-gray-100 dark:focus:border-gray-200"
                   value={randomizerOptions[option.id]}
+                  disabled={option.disabled}
                   on:change={setRandomizerOption(option.id)}
                 >
                   {#each option.choices as [value, label]}
