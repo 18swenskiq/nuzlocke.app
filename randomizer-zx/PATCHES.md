@@ -6,12 +6,14 @@ small documented patches over broad rewrites.
 
 ## Current Local Changes
 
-- No vendored upstream source files have been edited.
+- Vendored upstream source files are patched only where TeaVM lacks a Java SE
+  API used by UPR-ZX. Current upstream patch: config/table readers use
+  `TextScanner` instead of `java.util.Scanner`.
 - `randomizer-zx/web` adds a library-style adapter around the upstream
   `Settings`, `RomHandler.Factory`, and `Randomizer` APIs.
 - `randomizer-zx/web` provides browser-safe replacements for upstream classes
   that reference APIs unavailable in TeaVM/WASM. Current replacements:
-  `Utils` and `CustomNamesSet`.
+  `Utils`, `CustomNamesSet`, and `FileFunctions`.
 
 ## Known Browser/WASM Port Items
 
@@ -24,6 +26,10 @@ small documented patches over broad rewrites.
   browser-safe implementation.
 - Keep `CustomNamesSet` free of `java.util.Scanner`; TeaVM WASM GC does not
   provide `Scanner`, but UPR-ZX custom-name resources still need to load.
+- Keep `FileFunctions.getFileChecksum` free of `java.util.Scanner`; settings
+  strings still need to produce the same CRC over trimmed nonempty config lines.
+- Keep `.ini` and `.tbl` parsing in ROM/text handlers on `TextScanner`, a
+  browser-safe line reader with the subset of `Scanner` behavior UPR-ZX uses.
 - Keep Swing/AWT GUI packages, launcher code, and local test utilities excluded
   from TeaVM output.
 - Preserve 3DS update behavior: if a game update is supplied, output must be

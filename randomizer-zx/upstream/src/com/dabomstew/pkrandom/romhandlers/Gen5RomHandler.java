@@ -38,6 +38,7 @@ import java.util.stream.IntStream;
 import com.dabomstew.pkrandom.*;
 import com.dabomstew.pkrandom.constants.*;
 import com.dabomstew.pkrandom.exceptions.RandomizationException;
+import com.dabomstew.pkrandom.io.TextScanner;
 import com.dabomstew.pkrandom.pokemon.*;
 import pptxt.PPTxtHandler;
 
@@ -130,7 +131,7 @@ public class Gen5RomHandler extends AbstractDSRomHandler {
         roms = new ArrayList<>();
         RomEntry current = null;
         try {
-            Scanner sc = new Scanner(FileFunctions.openConfig("gen5_offsets.ini"), "UTF-8");
+            TextScanner sc = new TextScanner(FileFunctions.openConfig("gen5_offsets.ini"), "UTF-8");
             while (sc.hasNextLine()) {
                 String q = sc.nextLine().trim();
                 if (q.contains("//")) {

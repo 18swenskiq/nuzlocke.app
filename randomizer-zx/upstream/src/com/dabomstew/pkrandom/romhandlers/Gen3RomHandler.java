@@ -36,6 +36,7 @@ import com.dabomstew.pkrandom.constants.*;
 import com.dabomstew.pkrandom.exceptions.RandomizationException;
 import com.dabomstew.pkrandom.exceptions.RandomizerIOException;
 import com.dabomstew.pkrandom.io.RandomizerVfs;
+import com.dabomstew.pkrandom.io.TextScanner;
 import com.dabomstew.pkrandom.pokemon.*;
 import compressors.DSDecmp;
 
@@ -144,7 +145,7 @@ public class Gen3RomHandler extends AbstractGBRomHandler {
         roms = new ArrayList<>();
         RomEntry current = null;
         try {
-            Scanner sc = new Scanner(FileFunctions.openConfig("gen3_offsets.ini"), "UTF-8");
+            TextScanner sc = new TextScanner(FileFunctions.openConfig("gen3_offsets.ini"), "UTF-8");
             while (sc.hasNextLine()) {
                 String q = sc.nextLine().trim();
                 if (q.contains("//")) {
@@ -329,7 +330,7 @@ public class Gen3RomHandler extends AbstractGBRomHandler {
 
     private void loadTextTable(String filename) {
         try {
-            Scanner sc = new Scanner(FileFunctions.openConfig(filename + ".tbl"), "UTF-8");
+            TextScanner sc = new TextScanner(FileFunctions.openConfig(filename + ".tbl"), "UTF-8");
             while (sc.hasNextLine()) {
                 String q = sc.nextLine();
                 if (!q.trim().isEmpty()) {

@@ -32,10 +32,10 @@ import java.io.UnsupportedEncodingException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Random;
-import java.util.Scanner;
 
 import com.dabomstew.pkrandom.FileFunctions;
 import com.dabomstew.pkrandom.constants.GBConstants;
+import com.dabomstew.pkrandom.io.TextScanner;
 
 public abstract class AbstractGBCRomHandler extends AbstractGBRomHandler {
 
@@ -59,7 +59,7 @@ public abstract class AbstractGBCRomHandler extends AbstractGBRomHandler {
 
     protected void readTextTable(String name) {
         try {
-            Scanner sc = new Scanner(FileFunctions.openConfig(name + ".tbl"), "UTF-8");
+            TextScanner sc = new TextScanner(FileFunctions.openConfig(name + ".tbl"), "UTF-8");
             while (sc.hasNextLine()) {
                 String q = sc.nextLine();
                 if (!q.trim().isEmpty()) {

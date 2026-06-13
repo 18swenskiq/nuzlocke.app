@@ -11,11 +11,11 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Scanner;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import com.dabomstew.pkrandom.FileFunctions;
+import com.dabomstew.pkrandom.io.TextScanner;
 
 public class PPTxtHandler {
 
@@ -26,7 +26,7 @@ public class PPTxtHandler {
 
     static {
         try {
-            Scanner sc = new Scanner(FileFunctions.openConfig("Generation5.tbl"), "UTF-8");
+            TextScanner sc = new TextScanner(FileFunctions.openConfig("Generation5.tbl"), "UTF-8");
             while (sc.hasNextLine()) {
                 String q = sc.nextLine();
                 if (!q.trim().isEmpty()) {

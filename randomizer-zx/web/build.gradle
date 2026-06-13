@@ -34,6 +34,7 @@ def upstreamJavaSources = fileTree('../upstream/src') {
     exclude 'com/dabomstew/pkrandom/cli/**'
     exclude 'com/dabomstew/pkrandom/localtests/**'
     exclude 'com/dabomstew/pkrandom/CustomNamesSet.java'
+    exclude 'com/dabomstew/pkrandom/FileFunctions.java'
     exclude 'com/dabomstew/pkrandom/Utils.java'
 }
 

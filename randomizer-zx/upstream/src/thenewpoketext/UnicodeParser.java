@@ -9,9 +9,9 @@ package thenewpoketext;
 import java.io.FileNotFoundException;
 import java.util.HashMap;
 import java.util.Map;
-import java.util.Scanner;
 
 import com.dabomstew.pkrandom.FileFunctions;
+import com.dabomstew.pkrandom.io.TextScanner;
 
 public class UnicodeParser {
 
@@ -20,7 +20,7 @@ public class UnicodeParser {
 
     static {
         try {
-            Scanner sc = new Scanner(FileFunctions.openConfig("Generation4.tbl"), "UTF-8");
+            TextScanner sc = new TextScanner(FileFunctions.openConfig("Generation4.tbl"), "UTF-8");
             while (sc.hasNextLine()) {
                 String q = sc.nextLine();
                 if (!q.trim().isEmpty()) {
