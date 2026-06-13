@@ -5,6 +5,6 @@ public final class BrowserRandomizerMain {
     }
 
     public static void main(String[] args) {
-        BrowserRandomizerExports.registerBridge();
+        BrowserRandomizerExports.installBrowserVfs();
     }
 }

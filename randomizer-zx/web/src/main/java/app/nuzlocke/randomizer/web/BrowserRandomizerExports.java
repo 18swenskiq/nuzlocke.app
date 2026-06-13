@@ -2,7 +2,7 @@ package app.nuzlocke.randomizer.web;
 
 import com.dabomstew.pkrandom.Settings;
 import com.dabomstew.pkrandom.io.RandomizerVfs;
-import org.teavm.jso.JSBody;
+import org.teavm.jso.JSExport;
 
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -10,24 +10,6 @@ import java.util.regex.Pattern;
 public final class BrowserRandomizerExports {
     private BrowserRandomizerExports() {
     }
-
-    @JSBody(script = ""
-            + "globalThis.__uprzxBridge = {"
-            + "  defaultSettingsString: function() {"
-            + "    return javaMethods.get('app.nuzlocke.randomizer.web.BrowserRandomizerExports.defaultSettingsString()Ljava/lang/String;').invoke();"
-            + "  },"
-            + "  inspectRom: function(sourceRomPath) {"
-            + "    return javaMethods.get('app.nuzlocke.randomizer.web.BrowserRandomizerExports.inspectRom(Ljava/lang/String;)Ljava/lang/String;').invoke(sourceRomPath);"
-            + "  },"
-            + "  settingsStringFromUi: function(settingsJson) {"
-            + "    return javaMethods.get('app.nuzlocke.randomizer.web.BrowserRandomizerExports.settingsStringFromUi(Ljava/lang/String;)Ljava/lang/String;').invoke(settingsJson);"
-            + "  },"
-            + "  randomize: function(sourceRomPath, updatePath, outputPath, settingsString, seed, saveAsDirectory) {"
-            + "    return javaMethods.get('app.nuzlocke.randomizer.web.BrowserRandomizerExports.randomize(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;JZ)Ljava/lang/String;')"
-            + "      .invoke(sourceRomPath, updatePath, outputPath, settingsString, seed, saveAsDirectory);"
-            + "  }"
-            + "};")
-    public static native void registerBridge();
 
     public static void installBrowserVfs() {
         RandomizerVfs.set(new BrowserVfsFileSystem());
@@ -41,10 +23,12 @@ public final class BrowserRandomizerExports {
         }
     }
 
+    @JSExport
     public static String defaultSettingsString() {
         return new Settings().toString();
     }
 
+    @JSExport
     public static String settingsStringFromUi(String settingsJson) {
         try {
             Settings settings = settingsFromUiJson(settingsJson);
@@ -57,6 +41,7 @@ public final class BrowserRandomizerExports {
         }
     }
 
+    @JSExport
     public static String inspectRom(String sourceRomPath) {
         installBrowserVfs();
         try {
@@ -68,6 +53,7 @@ public final class BrowserRandomizerExports {
         }
     }
 
+    @JSExport
     public static String randomize(
             String sourceRomPath,
             String updatePath,

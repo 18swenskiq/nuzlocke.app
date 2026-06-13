@@ -111,7 +111,10 @@ const randomize = async ({
       await vfs.writeBlob(updatePath, update)
     }
 
-    const inspection = parseBridgeJson(runtime.bridge.inspectRom(sourceRomPath), 'inspect ROM')
+    const inspection = parseBridgeJson(
+      callBridge('inspect ROM', () => runtime.bridge.inspectRom(sourceRomPath)),
+      'inspect ROM'
+    )
     if (!inspection.ok || !inspection.supported) {
       throw workerError('UPRZX_UNSUPPORTED_ROM', 'UPR-ZX could not identify this ROM.', {
         inspection
@@ -129,13 +132,15 @@ const randomize = async ({
     const seedLong = seedToLong(seed || settings?.seed)
 
     const response = parseBridgeJson(
-      runtime.bridge.randomize(
-        sourceRomPath,
-        updatePath,
-        outputPath,
-        resolvedSettings.value,
-        seedLong,
-        saveAsDirectory
+      callBridge('randomize ROM', () =>
+        runtime.bridge.randomize(
+          sourceRomPath,
+          updatePath,
+          outputPath,
+          resolvedSettings.value,
+          seedLong,
+          saveAsDirectory
+        )
       ),
       'randomize ROM'
     )
@@ -188,13 +193,18 @@ const cancel = async (jobId) => {
 }
 
 const getRuntime = async () => {
-  runtimePromise ||= loadRuntime()
+  runtimePromise ||= loadRuntime().catch((error) => {
+    runtimePromise = null
+    throw error
+  })
   return runtimePromise
 }
 
 const loadRuntime = async () => {
   await assertRuntimeAvailable()
-  const runtimeModule = await import(/* @vite-ignore */ absoluteRuntimeUrl(randomizerRuntimeUrl))
+  const runtimeModule = await runtimeStage('import runtime loader', () =>
+    import(/* @vite-ignore */ absoluteRuntimeUrl(randomizerRuntimeUrl))
+  )
   const load = runtimeModule.load || runtimeModule.default?.load || runtimeModule.default
   if (typeof load !== 'function') {
     throw workerError('UPRZX_RUNTIME_LOADER_UNAVAILABLE', 'The UPR-ZX TeaVM loader did not expose a load function.', {
@@ -203,22 +213,52 @@ const loadRuntime = async () => {
     })
   }
 
-  const teavm = await load(absoluteRuntimeUrl(randomizerWasmUrl), {
-    stackDeobfuscator: { enabled: false }
-  })
+  const teavm = await runtimeStage('instantiate WebAssembly module', () =>
+    load(absoluteRuntimeUrl(randomizerWasmUrl), {
+      stackDeobfuscator: { enabled: false }
+    })
+  )
   if (typeof teavm?.exports?.main !== 'function') {
     throw workerError('UPRZX_RUNTIME_MAIN_UNAVAILABLE', 'The UPR-ZX WebAssembly runtime did not expose main().', {
-      runtimeUrl: absoluteRuntimeUrl(randomizerRuntimeUrl)
+      runtimeUrl: absoluteRuntimeUrl(randomizerRuntimeUrl),
+      exports: Object.keys(teavm?.exports || {})
     })
   }
 
-  await teavm.exports.main([])
-  const bridge = globalThis.__uprzxBridge
+  await runtimeStage('initialize Java exports', () => teavm.exports.main([]))
+  const bridge = createExportBridge(teavm.exports) || globalThis.__uprzxBridge
   if (!bridge?.inspectRom || !bridge?.randomize || !bridge?.settingsStringFromUi || !bridge?.defaultSettingsString) {
-    throw workerError('UPRZX_BRIDGE_UNAVAILABLE', 'The UPR-ZX WebAssembly runtime did not register the browser bridge.')
+    throw workerError('UPRZX_BRIDGE_UNAVAILABLE', 'The UPR-ZX WebAssembly runtime did not expose the browser bridge.', {
+      exports: Object.keys(teavm?.exports || {}),
+      hasLegacyBridge: !!globalThis.__uprzxBridge
+    })
   }
 
   return { teavm, bridge }
+}
+
+const runtimeStage = async (stage, task) => {
+  try {
+    return await task()
+  } catch (error) {
+    if (error?.code?.startsWith?.('UPRZX_')) throw error
+    throw workerError('UPRZX_RUNTIME_LOAD_FAILED', `UPR-ZX runtime failed during ${stage}: ${error.message || String(error)}`, {
+      stage,
+      cause: serializeNativeError(error),
+      runtimeUrl: absoluteRuntimeUrl(randomizerRuntimeUrl),
+      wasmUrl: absoluteRuntimeUrl(randomizerWasmUrl)
+    })
+  }
+}
+
+const createExportBridge = (runtimeExports = {}) => {
+  const bridge = {
+    defaultSettingsString: runtimeExports.defaultSettingsString,
+    inspectRom: runtimeExports.inspectRom,
+    settingsStringFromUi: runtimeExports.settingsStringFromUi,
+    randomize: runtimeExports.randomize
+  }
+  return Object.values(bridge).every((value) => typeof value === 'function') ? bridge : null
 }
 
 const assertRuntimeAvailable = async () => {
@@ -426,6 +466,18 @@ const parseBridgeJson = (value, action) => {
   }
 }
 
+const callBridge = (action, task) => {
+  try {
+    return task()
+  } catch (error) {
+    if (error?.code?.startsWith?.('UPRZX_')) throw error
+    throw workerError('UPRZX_BRIDGE_CALL_FAILED', `UPR-ZX failed while trying to ${action}.`, {
+      action,
+      cause: serializeNativeError(error)
+    })
+  }
+}
+
 const resolveSettingsString = (settings, bridge) => {
   const value =
     (typeof settings === 'string' && settings) ||
@@ -436,7 +488,10 @@ const resolveSettingsString = (settings, bridge) => {
 
   if (value) return { value, source: 'provided' }
   if (settings && typeof settings === 'object') {
-    const response = parseBridgeJson(bridge.settingsStringFromUi(JSON.stringify(settings)), 'encode settings')
+    const response = parseBridgeJson(
+      callBridge('encode settings', () => bridge.settingsStringFromUi(JSON.stringify(settings))),
+      'encode settings'
+    )
     if (!response.ok) {
       throw workerError('UPRZX_SETTINGS_ENCODE_FAILED', response.error || 'Could not encode randomizer settings.', {
         settings
@@ -444,7 +499,7 @@ const resolveSettingsString = (settings, bridge) => {
     }
     return { value: response.settingsString, source: 'ui-json' }
   }
-  return { value: bridge.defaultSettingsString(), source: 'upr-zx-default' }
+  return { value: callBridge('load default settings', () => bridge.defaultSettingsString()), source: 'upr-zx-default' }
 }
 
 const seedToLong = (seed) => {
@@ -541,8 +596,29 @@ const formatBytes = (bytes) => {
 
 const workerError = (code, message, details = {}) => Object.assign(new Error(message), { code, details })
 
+const serializeNativeError = (error) => {
+  if (!error || typeof error !== 'object') {
+    return {
+      name: 'Error',
+      message: String(error),
+      stack: null
+    }
+  }
+
+  return {
+    code: error.code || null,
+    name: error.name || 'Error',
+    message: error.message || String(error),
+    stack: error.stack || null,
+    details: error.details || null,
+    cause: error.cause ? serializeNativeError(error.cause) : null
+  }
+}
+
 const serializeError = (error) => ({
   code: error.code || 'RANDOMIZER_WORKER_ERROR',
+  name: error.name || 'Error',
   message: error.message || String(error),
+  stack: error.stack || null,
   details: error.details || {}
 })
