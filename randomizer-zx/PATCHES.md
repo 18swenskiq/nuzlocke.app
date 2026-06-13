@@ -9,6 +9,9 @@ small documented patches over broad rewrites.
 - No vendored upstream source files have been edited.
 - `randomizer-zx/web` adds a library-style adapter around the upstream
   `Settings`, `RomHandler.Factory`, and `Randomizer` APIs.
+- `randomizer-zx/web` provides browser-safe replacements for upstream classes
+  that reference APIs unavailable in TeaVM/WASM. Current replacements:
+  `Utils` and `CustomNamesSet`.
 
 ## Known Browser/WASM Port Items
 
@@ -19,6 +22,8 @@ small documented patches over broad rewrites.
   desktop image types.
 - Replace `Utils.getExecutionLocation()` and any GUI-class references with a
   browser-safe implementation.
+- Keep `CustomNamesSet` free of `java.util.Scanner`; TeaVM WASM GC does not
+  provide `Scanner`, but UPR-ZX custom-name resources still need to load.
 - Keep Swing/AWT GUI packages, launcher code, and local test utilities excluded
   from TeaVM output.
 - Preserve 3DS update behavior: if a game update is supplied, output must be
