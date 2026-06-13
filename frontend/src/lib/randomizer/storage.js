@@ -131,6 +131,39 @@ export class FileSystemAccessSink {
   }
 }
 
+export class FileSystemAccessDirectorySink {
+  static supported() {
+    return typeof window !== 'undefined' && 'showDirectoryPicker' in window
+  }
+
+  async write({ entries }) {
+    if (!FileSystemAccessDirectorySink.supported()) {
+      throw new Error('Directory output is not available in this browser')
+    }
+    if (!entries?.length) {
+      throw new Error('Directory output requires at least one generated file')
+    }
+
+    const root = await window.showDirectoryPicker({ mode: 'readwrite' })
+    let size = 0
+
+    for (const entry of entries) {
+      const blob =
+        entry.blob instanceof Blob
+          ? entry.blob
+          : new Blob([entry.blob ?? entry.bytes ?? ''])
+      await writeDirectoryEntry(root, entry.name || entry.path, blob)
+      size += blob.size
+    }
+
+    return {
+      entries: entries.length,
+      size,
+      mode: 'file-system-access-directory'
+    }
+  }
+}
+
 export const downloadBlob = (blob, filename) => {
   const url = URL.createObjectURL(blob)
   const link = document.createElement('a')
@@ -159,8 +192,23 @@ export const createTarBlob = async (entries) => {
   return new Blob(chunks, { type: 'application/x-tar' })
 }
 
+const writeDirectoryEntry = async (root, path, blob) => {
+  const parts = normalizeTarName(path).split('/')
+  const filename = parts.pop()
+  let directory = root
+
+  for (const part of parts) {
+    directory = await directory.getDirectoryHandle(part, { create: true })
+  }
+
+  const handle = await directory.getFileHandle(filename, { create: true })
+  const writable = await handle.createWritable()
+  await writable.write(blob)
+  await writable.close()
+}
+
 const normalizeTarName = (name) => {
-  const normalized = name.replace(/\\/g, '/').replace(/^\/+/, '')
+  const normalized = String(name || '').replace(/\\/g, '/').replace(/^\/+/, '')
   if (!normalized) throw new Error('Archive entry name is required')
   if (encoder.encode(normalized).length > 100) {
     throw new Error(`Archive entry name is too long for tar: ${name}`)

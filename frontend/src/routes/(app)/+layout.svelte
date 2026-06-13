@@ -27,11 +27,42 @@
     if (browser) setTimeout(() => document.body.classList.add('lazy-pkm'), 0)
   })
 
+  const readRandomizedLeague = (game, starter) => {
+    if (!browser) return null
+
+    const [gameData] = readdata()
+    const results =
+      gameData?.__randomizer?.results || gameData?.__randomizer?.extractedData
+    const league =
+      results?.league ||
+      results?.bosses ||
+      results?.trainers?.league ||
+      results?.tracker?.league ||
+      results?.trackerData?.league
+
+    if (!league || Array.isArray(league) || typeof league !== 'object') {
+      return null
+    }
+
+    return (
+      league[starter] ||
+      league[`${game}@${starter}`] ||
+      league[game]?.[starter] ||
+      league[game] ||
+      league
+    )
+  }
+
   setContext('game', {
-    getLeague: (...args) => fetchLeague(...args).catch(err => {
-      console.error('[getLeague]', err)
-      return []
-    }),
+    getLeague: (...args) => {
+      const randomizedLeague = readRandomizedLeague(...args)
+      if (randomizedLeague) return Promise.resolve(randomizedLeague)
+
+      return fetchLeague(...args).catch(err => {
+        console.error('[getLeague]', err)
+        return []
+      })
+    },
     getAllPkmn: () => fetchData().then((res) => Object.values(res.aliasMap)).catch(err => {
       console.error('[getAllPkmn]', err)
       return []

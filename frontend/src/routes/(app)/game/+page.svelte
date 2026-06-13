@@ -71,8 +71,17 @@
     return route
   }
 
-  const readRandomizedRoute = (data) =>
-    data?.__randomizer?.route || data?.__randomizer?.results?.route
+  const readRandomizedRoute = (data) => {
+    const randomizer = data?.__randomizer
+    const results = randomizer?.results || randomizer?.extractedData
+    return (
+      randomizer?.route ||
+      results?.route ||
+      results?.routes ||
+      results?.tracker?.route ||
+      results?.trackerData?.route
+    )
+  }
 
   onMount(() => {
     parse((saves) => {

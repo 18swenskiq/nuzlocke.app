@@ -30,6 +30,12 @@
   } from '$lib/randomizer/capabilities'
   import { createRandomizerClient } from '$lib/randomizer/client'
   import {
+    ArchiveDownloadSink,
+    BlobDownloadSink,
+    FileSystemAccessDirectorySink,
+    FileSystemAccessSink
+  } from '$lib/randomizer/storage'
+  import {
     buildRandomizerManifest,
     randomizerDefaults,
     randomizerOptionGroups,
@@ -39,30 +45,27 @@
   let validGames = filterObj(Games, (g) => g.supported)
 
   let gameName = ''
-  const handleNewGame = () => {
+  const handleNewGame = async () => {
+    if (randomizingRun) return
     if (!selectedGame?.supported)
       return alert(`Sorry, ${selectedGame?.title} is currently not supported`)
 
-    let createid = selected
-    if (selectedGame?.difficulty)
-      createid += difficultyOptions?.[difficulty]?.id || ''
+    const createid = createGameKey()
 
-    const randomizer = randomizeRun ? createRandomizerManifest(createid) : null
+    if (!randomizeRun) return saveNewGame(createid)
 
-    savedGames.update(
-      createGame(
-        gameName,
-        createid,
-        JSON.stringify(randomizer ? { __randomizer: randomizer } : {}),
-        randomizer
-          ? {
-              randomizer,
-              settings: randomizerSettingsDefault(settingsDefault)
-            }
-          : {}
-      )
-    )
-    window.location = '/game'
+    randomizingRun = true
+    romError = ''
+
+    try {
+      const randomizer = await createRandomizedRun(createid)
+      saveNewGame(createid, randomizer)
+    } catch (error) {
+      console.error('[randomizer]', error)
+      romError = formatRandomizerError(error)
+    } finally {
+      randomizingRun = false
+    }
   }
 
   import { generateRoute } from '$lib/services/routeGenerator'
@@ -90,11 +93,13 @@
     selected === id ? (selected = null) : (selected = id)
 
   let randomizeRun = false
+  let romFile = null
   let romInfo = null
   let romError = ''
   let updateFile = null
   let updateInfo = null
   let inspectingRom = false
+  let randomizingRun = false
   let outputMode = 'single-file'
   let randomizerCapabilities = null
   let randomizerClient = null
@@ -123,6 +128,7 @@
 
   const handleRomUpload = async (event) => {
     const file = event.currentTarget.files?.[0]
+    romFile = null
     romInfo = null
     romError = ''
 
@@ -139,6 +145,7 @@
       romInfo = randomizerClient
         ? await randomizerClient.inspectRom({ rom: file, update: updateFile })
         : await inspectRomLocally(file)
+      romFile = file
       if (updateInfo && !romInfo.update) romInfo.update = updateInfo
       outputMode = getDefaultOutputMode(romInfo, randomizerCapabilities)
       if (randomizerClient) {
@@ -147,6 +154,7 @@
     } catch (error) {
       romError = error.message || 'Could not inspect ROM'
       romInfo = null
+      romFile = null
     } finally {
       inspectingRom = false
     }
@@ -215,6 +223,55 @@
     }
   }
 
+  const createGameKey = () => {
+    let createid = selected
+    if (selectedGame?.difficulty)
+      createid += difficultyOptions?.[difficulty]?.id || ''
+    return createid
+  }
+
+  const saveNewGame = (gameKey, randomizer = null) => {
+    savedGames.update(
+      createGame(
+        gameName,
+        gameKey,
+        JSON.stringify(randomizer ? { __randomizer: randomizer } : {}),
+        randomizer
+          ? {
+              randomizer: compactRandomizerMetadata(randomizer),
+              settings: randomizerSettingsDefault(settingsDefault)
+            }
+          : {}
+      )
+    )
+    window.location = '/game'
+  }
+
+  const createRandomizedRun = async (gameKey) => {
+    if (!romFile) {
+      throw Object.assign(new Error('Upload a ROM before creating a randomized run'), {
+        code: 'ROM_REQUIRED'
+      })
+    }
+    if (!randomizerClient) {
+      throw Object.assign(new Error('The randomizer worker is not available'), {
+        code: 'RANDOMIZER_CLIENT_UNAVAILABLE'
+      })
+    }
+
+    const manifest = createRandomizerManifest(gameKey)
+    const result = await randomizerClient.randomize({
+      rom: romFile,
+      update: updateFile,
+      settings: randomizerOptions,
+      seed: randomizerOptions.seed,
+      outputMode
+    })
+    const savedOutput = await persistRandomizerOutput(result)
+
+    return completeRandomizerManifest(manifest, result, savedOutput)
+  }
+
   const createRandomizerManifest = (gameKey) =>
     buildRandomizerManifest({
       runId: shortuuid(),
@@ -225,6 +282,123 @@
       outputMode,
       rom: romInfo
     })
+
+  const completeRandomizerManifest = (manifest, result, savedOutput) => ({
+    ...manifest,
+    status: 'randomized',
+    settings: {
+      ...manifest.settings,
+      string:
+        result?.settingsString ||
+        result?.settings?.string ||
+        manifest.settings.string
+    },
+    results: result?.extractedData || result?.results || null,
+    output: {
+      ...manifest.output,
+      ...compactOutputMetadata(result?.output),
+      saved: savedOutput
+    },
+    log: result?.log || null,
+    checkValue: result?.checkValue ?? result?.check_value ?? null,
+    randomized: +new Date()
+  })
+
+  const compactOutputMetadata = (output = {}) => {
+    const metadata = { ...(output || {}) }
+    delete metadata.blob
+    delete metadata.bytes
+    delete metadata.entries
+    delete metadata.files
+    delete metadata.file
+    delete metadata.directoryHandle
+    return metadata
+  }
+
+  const compactRandomizerMetadata = (randomizer) => ({
+    ...randomizer,
+    results: randomizer.results
+      ? {
+          extracted: true,
+          routeCount: randomizer.results.route?.length || randomizer.results.routes?.length || null,
+          trainerCount:
+            Object.keys(randomizer.results.league || randomizer.results.trainers || {}).length || null
+        }
+      : null,
+    log: randomizer.log ? { present: true } : null
+  })
+
+  const persistRandomizerOutput = async (result) => {
+    const output = result?.output
+    if (!output) return null
+
+    const entries = output.entries || output.files
+    if (entries?.length) {
+      if (
+        outputMode === 'layeredfs-directory' &&
+        FileSystemAccessDirectorySink.supported()
+      ) {
+        return new FileSystemAccessDirectorySink().write({ entries })
+      }
+
+      return new ArchiveDownloadSink({
+        format: output.archiveFormat || output.format || 'tar'
+      }).write({
+        filename: output.filename || output.suggestedName || `${gameName || 'randomized-run'}-layeredfs`,
+        entries
+      })
+    }
+
+    const blob =
+      output.blob instanceof Blob
+        ? output.blob
+        : output.bytes
+          ? new Blob([output.bytes], { type: output.type || 'application/octet-stream' })
+          : null
+
+    if (!blob) return compactOutputMetadata(output)
+
+    const filename =
+      output.filename ||
+      output.suggestedName ||
+      defaultRandomizerOutputName(romInfo?.name)
+
+    if (randomizerCapabilities?.directSavePicker && FileSystemAccessSink.supported()) {
+      return new FileSystemAccessSink().writeFile({
+        suggestedName: filename,
+        blob,
+        types: [
+          {
+            description: 'Randomized Pokemon ROM',
+            accept: {
+              'application/octet-stream': ['.' + (romInfo?.extension || 'rom')]
+            }
+          }
+        ]
+      })
+    }
+
+    return new BlobDownloadSink().write({ filename, blob })
+  }
+
+  const defaultRandomizerOutputName = (filename = 'randomized.rom') => {
+    const dot = filename.lastIndexOf('.')
+    if (dot < 1) return `${filename}.randomized`
+    return `${filename.slice(0, dot)}.randomized${filename.slice(dot)}`
+  }
+
+  const formatRandomizerError = (error) => {
+    if (error?.code === 'UPRZX_WASM_UNAVAILABLE') {
+      return 'The UPR-ZX browser runtime is not built into this site yet, so the run was not created.'
+    }
+    if (error?.code === 'UPRZX_WASM_NOT_BOUND') {
+      return 'The UPR-ZX browser runtime is present, but the JavaScript binding is not wired yet, so the run was not created.'
+    }
+    if (error?.code === 'ROM_REQUIRED') {
+      return 'Upload a ROM before creating a randomized run.'
+    }
+    return error?.message || 'Randomization failed, so the run was not created.'
+  }
 
   let difficulty = 0,
     difficultyOptions = []
@@ -264,7 +438,10 @@
       : 'layeredfs-archive'
   }
   $: disabled =
-    !gameName.length || !selected || (randomizeRun && (!romInfo || inspectingRom))
+    !gameName.length ||
+    !selected ||
+    randomizingRun ||
+    (randomizeRun && (!romInfo || inspectingRom))
 </script>
 
 <svelte:head>
@@ -342,7 +519,11 @@
     </label>
 
     <Button rounded {disabled} on:click={handleNewGame}>
-      {randomizeRun ? 'Create randomized run' : 'Create game'}
+      {randomizingRun
+        ? 'Randomizing ROM'
+        : randomizeRun
+          ? 'Create randomized run'
+          : 'Create game'}
     </Button>
     <div>
       <Tooltip
@@ -388,6 +569,10 @@
 
         {#if inspectingRom}
           <span class="text-sm font-bold text-orange-500">Inspecting ROM</span>
+        {/if}
+
+        {#if randomizingRun}
+          <span class="text-sm font-bold text-orange-500">Randomizing ROM</span>
         {/if}
 
         {#if romError}
