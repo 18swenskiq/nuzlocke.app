@@ -274,6 +274,7 @@ public final class BrowserRandomizerExports {
                 + "\"settingsString\":" + quote(response.settingsString) + ","
                 + "\"changedStarter\":" + response.changedStarter + ","
                 + "\"removedCodeTweaks\":" + response.removedCodeTweaks + ","
+                + "\"extractedData\":" + (response.extractedDataJson == null ? "null" : response.extractedDataJson) + ","
                 + "\"log\":" + quote(response.log)
                 + "}";
     }

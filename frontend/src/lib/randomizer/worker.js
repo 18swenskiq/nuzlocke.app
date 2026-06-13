@@ -159,9 +159,9 @@ const randomize = async ({
       output: saveAsDirectory
         ? directoryOutput(vfs, response.outputPath || outputPath, rom.name, outputMode)
         : fileOutput(vfs, response.outputPath || outputPath, rom.name),
-      extractedData: null,
-      warnings:
-        resolvedSettings.source === 'upr-zx-default'
+      extractedData: response.extractedData || null,
+      warnings: [
+        ...(resolvedSettings.source === 'upr-zx-default'
           ? [
               {
                 code: 'UPRZX_DEFAULT_SETTINGS_USED',
@@ -169,7 +169,9 @@ const randomize = async ({
                   'The browser runtime used upstream UPR-ZX default settings because no canonical settings string was supplied.'
               }
             ]
-          : []
+          : []),
+        ...((Array.isArray(response.extractedData?.warnings) && response.extractedData.warnings) || [])
+      ]
     }
   } finally {
     jobs.delete(jobId)
