@@ -221,7 +221,7 @@ const loadRuntime = async () => {
   if (typeof teavm?.exports?.main !== 'function') {
     throw workerError('UPRZX_RUNTIME_MAIN_UNAVAILABLE', 'The UPR-ZX WebAssembly runtime did not expose main().', {
       runtimeUrl: absoluteRuntimeUrl(randomizerRuntimeUrl),
-      exports: Object.keys(teavm?.exports || {})
+      exports: exportNames(teavm?.exports || {})
     })
   }
 
@@ -229,7 +229,7 @@ const loadRuntime = async () => {
   const bridge = createExportBridge(teavm.exports) || globalThis.__uprzxBridge
   if (!bridge?.inspectRom || !bridge?.randomize || !bridge?.settingsStringFromUi || !bridge?.defaultSettingsString) {
     throw workerError('UPRZX_BRIDGE_UNAVAILABLE', 'The UPR-ZX WebAssembly runtime did not expose the browser bridge.', {
-      exports: Object.keys(teavm?.exports || {}),
+      exports: exportNames(teavm?.exports || {}),
       hasLegacyBridge: !!globalThis.__uprzxBridge
     })
   }
@@ -252,14 +252,26 @@ const runtimeStage = async (stage, task) => {
 }
 
 const createExportBridge = (runtimeExports = {}) => {
-  const bridge = {
+  const directBridge = validBridge({
     defaultSettingsString: runtimeExports.defaultSettingsString,
     inspectRom: runtimeExports.inspectRom,
     settingsStringFromUi: runtimeExports.settingsStringFromUi,
     randomize: runtimeExports.randomize
-  }
-  return Object.values(bridge).every((value) => typeof value === 'function') ? bridge : null
+  })
+  if (directBridge) return directBridge
+
+  const exportedClass = runtimeExports.BrowserRandomizerExports
+  return validBridge({
+    defaultSettingsString: exportedClass?.defaultSettingsString?.bind(exportedClass),
+    inspectRom: exportedClass?.inspectRom?.bind(exportedClass),
+    settingsStringFromUi: exportedClass?.settingsStringFromUi?.bind(exportedClass),
+    randomize: exportedClass?.randomize?.bind(exportedClass)
+  })
 }
+
+const validBridge = (bridge) => (Object.values(bridge).every((value) => typeof value === 'function') ? bridge : null)
+
+const exportNames = (runtimeExports = {}) => Object.getOwnPropertyNames(runtimeExports)
 
 const assertRuntimeAvailable = async () => {
   await Promise.all([
