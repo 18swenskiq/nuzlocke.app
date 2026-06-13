@@ -5,6 +5,6 @@ public final class BrowserRandomizerMain {
     }
 
     public static void main(String[] args) {
-        // TeaVM needs a main class even though the worker calls exported adapter methods.
+        BrowserRandomizerExports.registerBridge();
     }
 }

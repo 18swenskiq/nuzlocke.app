@@ -10,7 +10,8 @@ const wrapper = resolve(
   randomizerDir,
   process.platform === 'win32' ? 'gradlew.bat' : 'gradlew'
 )
-const runtime = resolve(root, 'frontend', 'static', 'randomizer', 'generated', 'uprzx.wasm')
+const wasmRuntime = resolve(root, 'frontend', 'static', 'randomizer', 'generated', 'uprzx.wasm')
+const jsRuntime = resolve(root, 'frontend', 'static', 'randomizer', 'generated', 'uprzx.wasm-runtime.js')
 
 if (process.env.SKIP_RANDOMIZER_BUILD === '1') {
   console.warn('Skipping UPR-ZX WebAssembly build because SKIP_RANDOMIZER_BUILD=1.')
@@ -62,8 +63,13 @@ child.on('exit', (code, signal) => {
     process.exit(code || 1)
   }
 
-  if (!existsSync(runtime)) {
-    console.error(`UPR-ZX WebAssembly build completed, but ${runtime} was not created.`)
+  if (!existsSync(wasmRuntime)) {
+    console.error(`UPR-ZX WebAssembly build completed, but ${wasmRuntime} was not created.`)
+    process.exit(1)
+  }
+
+  if (!existsSync(jsRuntime)) {
+    console.error(`UPR-ZX WebAssembly build completed, but ${jsRuntime} was not created.`)
     process.exit(1)
   }
 })

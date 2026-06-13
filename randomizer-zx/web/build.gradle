@@ -3,6 +3,10 @@ plugins {
     id 'org.teavm' version '0.14.1'
 }
 
+dependencies {
+    implementation 'org.teavm:teavm-jso:0.14.1'
+}
+
 java {
     toolchain {
         languageVersion = JavaLanguageVersion.of(17)
@@ -53,6 +57,7 @@ teavm {
         processMemory = 4096
         minDirectBuffersSize = 256
         preservedClasses.add('app.nuzlocke.randomizer.web.BrowserRandomizerAdapter')
+        preservedClasses.add('app.nuzlocke.randomizer.web.BrowserRandomizerExports')
     }
 }
 

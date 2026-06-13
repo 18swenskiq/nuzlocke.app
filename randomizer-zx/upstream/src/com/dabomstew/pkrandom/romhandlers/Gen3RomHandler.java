@@ -35,6 +35,7 @@ import com.dabomstew.pkrandom.*;
 import com.dabomstew.pkrandom.constants.*;
 import com.dabomstew.pkrandom.exceptions.RandomizationException;
 import com.dabomstew.pkrandom.exceptions.RandomizerIOException;
+import com.dabomstew.pkrandom.io.RandomizerVfs;
 import com.dabomstew.pkrandom.pokemon.*;
 import compressors.DSDecmp;
 
@@ -48,8 +49,13 @@ public class Gen3RomHandler extends AbstractGBRomHandler {
         }
 
         public boolean isLoadable(String filename) {
-            long fileLength = new File(filename).length();
-            if (fileLength > 32 * 1024 * 1024) {
+            long fileLength;
+            try {
+                fileLength = RandomizerVfs.get().length(filename);
+                if (fileLength > 32 * 1024 * 1024) {
+                    return false;
+                }
+            } catch (IOException e) {
                 return false;
             }
             byte[] loaded = loadFilePartial(filename, 0x100000);

@@ -25,9 +25,6 @@ package com.dabomstew.pkrandom.romhandlers;
 /*--  along with this program. If not, see <http://www.gnu.org/licenses/>.  --*/
 /*----------------------------------------------------------------------------*/
 
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.nio.file.Path;
@@ -37,6 +34,9 @@ import java.util.Random;
 import com.dabomstew.pkrandom.FileFunctions;
 import com.dabomstew.pkrandom.exceptions.CannotWriteToLocationException;
 import com.dabomstew.pkrandom.exceptions.RandomizerIOException;
+import com.dabomstew.pkrandom.io.RandomizerVfs;
+import com.dabomstew.pkrandom.io.VfsFileSystem;
+import com.dabomstew.pkrandom.io.VfsRandomAccessFile;
 
 public abstract class AbstractGBRomHandler extends AbstractRomHandler {
 
@@ -71,9 +71,7 @@ public abstract class AbstractGBRomHandler extends AbstractRomHandler {
     public boolean saveRomFile(String filename, long seed) {
         savingRom();
         try {
-            FileOutputStream fos = new FileOutputStream(filename);
-            fos.write(rom);
-            fos.close();
+            RandomizerVfs.get().writeAllBytes(filename, rom);
             return true;
         } catch (IOException ex) {
             if (ex.getMessage().contains("Access is denied")) {
@@ -147,18 +145,23 @@ public abstract class AbstractGBRomHandler extends AbstractRomHandler {
 
     protected static byte[] loadFilePartial(String filename, int maxBytes) {
         try {
-            File fh = new File(filename);
-            if (!fh.exists() || !fh.isFile() || !fh.canRead()) {
+            VfsFileSystem vfs = RandomizerVfs.get();
+            if (!vfs.exists(filename) || !vfs.isFile(filename) || !vfs.canRead(filename)) {
                 return new byte[0];
             }
-            long fileSize = fh.length();
+            long fileSize = vfs.length(filename);
             if (fileSize > Integer.MAX_VALUE) {
                 return new byte[0];
             }
-            FileInputStream fis = new FileInputStream(filename);
-            byte[] file = FileFunctions.readFullyIntoBuffer(fis, Math.min((int) fileSize, maxBytes));
-            fis.close();
-            return file;
+            int bytesToRead = Math.min((int) fileSize, maxBytes);
+            VfsRandomAccessFile file = vfs.openRandomAccess(filename, "r");
+            try {
+                byte[] data = new byte[bytesToRead];
+                file.readFully(data);
+                return data;
+            } finally {
+                file.close();
+            }
         } catch (IOException ex) {
             return new byte[0];
         }

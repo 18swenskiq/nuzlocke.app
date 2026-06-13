@@ -1,11 +1,9 @@
 package com.dabomstew.pkrandom.newnds;
 
-import java.io.File;
-import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.RandomAccessFile;
 
 import com.dabomstew.pkrandom.FileFunctions;
+import com.dabomstew.pkrandom.io.VfsRandomAccessFile;
 
 import cuecompressors.BLZCoder;
 
@@ -55,7 +53,7 @@ public class NDSY9Entry {
         if (this.status == Extracted.NOT) {
             // extract file
             parent.reopenROM();
-            RandomAccessFile rom = parent.getBaseRom();
+            VfsRandomAccessFile rom = parent.getBaseRom();
             byte[] buf = new byte[this.original_size];
             rom.seek(this.offset);
             rom.readFully(buf);
@@ -70,11 +68,7 @@ public class NDSY9Entry {
                 String tmpDir = parent.getTmpFolder();
                 String fullPath = String.format("overlay_%04d", overlay_id);
                 this.extFilename = fullPath.replaceAll("[^A-Za-z0-9_]+", "");
-                File tmpFile = new File(tmpDir + extFilename);
-                FileOutputStream fos = new FileOutputStream(tmpFile);
-                fos.write(buf);
-                fos.close();
-                tmpFile.deleteOnExit();
+                FileFunctions.writeBytesToFile(tmpDir + extFilename, buf);
                 this.status = Extracted.TO_FILE;
                 this.data = null;
                 return buf;
@@ -103,9 +97,7 @@ public class NDSY9Entry {
         size = data.length;
         if (status == Extracted.TO_FILE) {
             String tmpDir = parent.getTmpFolder();
-            FileOutputStream fos = new FileOutputStream(new File(tmpDir + this.extFilename));
-            fos.write(data);
-            fos.close();
+            FileFunctions.writeBytesToFile(tmpDir + this.extFilename, data);
         } else {
             if (this.data.length == data.length) {
                 // copy new in

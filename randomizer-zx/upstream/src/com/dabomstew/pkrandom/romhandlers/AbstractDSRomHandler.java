@@ -24,7 +24,6 @@ package com.dabomstew.pkrandom.romhandlers;
 /*--  You should have received a copy of the GNU General Public License     --*/
 /*--  along with this program. If not, see <http://www.gnu.org/licenses/>.  --*/
 /*----------------------------------------------------------------------------*/
-import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.util.Arrays;
@@ -35,6 +34,8 @@ import com.dabomstew.pkrandom.FileFunctions;
 import com.dabomstew.pkrandom.RomFunctions;
 import com.dabomstew.pkrandom.exceptions.CannotWriteToLocationException;
 import com.dabomstew.pkrandom.exceptions.RandomizerIOException;
+import com.dabomstew.pkrandom.io.RandomizerVfs;
+import com.dabomstew.pkrandom.io.VfsRandomAccessFile;
 import com.dabomstew.pkrandom.newnds.NARCArchive;
 import com.dabomstew.pkrandom.newnds.NDSRom;
 import com.dabomstew.pkrandom.pokemon.Type;
@@ -160,8 +161,8 @@ public abstract class AbstractDSRomHandler extends AbstractRomHandler {
 
     protected static String getROMCodeFromFile(String filename) {
         try {
-            FileInputStream fis = new FileInputStream(filename);
-            fis.skip(0x0C);
+            VfsRandomAccessFile fis = RandomizerVfs.get().openRandomAccess(filename, "r");
+            fis.seek(0x0C);
             byte[] sig = FileFunctions.readFullyIntoBuffer(fis, 4);
             fis.close();
             return new String(sig, "US-ASCII");
@@ -172,8 +173,8 @@ public abstract class AbstractDSRomHandler extends AbstractRomHandler {
 
     protected static byte getVersionFromFile(String filename) {
         try {
-            FileInputStream fis = new FileInputStream(filename);
-            fis.skip(0x1E);
+            VfsRandomAccessFile fis = RandomizerVfs.get().openRandomAccess(filename, "r");
+            fis.seek(0x1E);
             byte[] version = FileFunctions.readFullyIntoBuffer(fis, 1);
             fis.close();
             return version[0];

@@ -34,6 +34,10 @@ import java.util.List;
 import java.util.Scanner;
 import java.util.zip.CRC32;
 
+import com.dabomstew.pkrandom.io.RandomizerVfs;
+import com.dabomstew.pkrandom.io.VfsFileSystem;
+import com.dabomstew.pkrandom.io.VfsRandomAccessFile;
+
 public class FileFunctions {
 
     public static File fixFilename(File original, String defaultExtension) {
@@ -46,7 +50,11 @@ public class FileFunctions {
     // with defaultExtension
     // else, leave as is
     public static File fixFilename(File original, String defaultExtension, List<String> bannedExtensions) {
-        String absolutePath = original.getAbsolutePath();
+        String absolutePath = fixFilenamePath(original.getAbsolutePath(), defaultExtension, bannedExtensions);
+        return new File(absolutePath);
+    }
+
+    public static String fixFilenamePath(String absolutePath, String defaultExtension, List<String> bannedExtensions) {
         for (String bannedExtension: bannedExtensions) {
             if (absolutePath.endsWith("." + bannedExtension)) {
                 absolutePath = absolutePath.substring(0, absolutePath.lastIndexOf('.') + 1) + defaultExtension;
@@ -56,7 +64,7 @@ public class FileFunctions {
         if (!absolutePath.endsWith("." + defaultExtension)) {
             absolutePath += "." + defaultExtension;
         }
-        return new File(absolutePath);
+        return absolutePath;
     }
 
     private static List<String> overrideFiles = Arrays.asList(SysConstants.customNamesFile,
@@ -64,13 +72,18 @@ public class FileFunctions {
 
     public static boolean configExists(String filename) {
         if (overrideFiles.contains(filename)) {
-            File fh = new File(SysConstants.ROOT_PATH + filename);
-            if (fh.exists() && fh.canRead()) {
-                return true;
-            }
-            fh = new File("./" + filename);
-            if (fh.exists() && fh.canRead()) {
-                return true;
+            VfsFileSystem vfs = RandomizerVfs.get();
+            try {
+                String rootPath = SysConstants.ROOT_PATH + filename;
+                if (vfs.exists(rootPath) && vfs.canRead(rootPath)) {
+                    return true;
+                }
+                String localPath = "./" + filename;
+                if (vfs.exists(localPath) && vfs.canRead(localPath)) {
+                    return true;
+                }
+            } catch (IOException ignored) {
+                // Fall through to bundled resources.
             }
         }
         return FileFunctions.class.getResource("/com/dabomstew/pkrandom/config/" + filename) != null;
@@ -78,13 +91,18 @@ public class FileFunctions {
 
     public static InputStream openConfig(String filename) throws FileNotFoundException {
         if (overrideFiles.contains(filename)) {
-            File fh = new File(SysConstants.ROOT_PATH + filename);
-            if (fh.exists() && fh.canRead()) {
-                return new FileInputStream(fh);
-            }
-            fh = new File("./" + filename);
-            if (fh.exists() && fh.canRead()) {
-                return new FileInputStream(fh);
+            VfsFileSystem vfs = RandomizerVfs.get();
+            try {
+                String rootPath = SysConstants.ROOT_PATH + filename;
+                if (vfs.exists(rootPath) && vfs.canRead(rootPath)) {
+                    return new ByteArrayInputStream(vfs.readAllBytes(rootPath));
+                }
+                String localPath = "./" + filename;
+                if (vfs.exists(localPath) && vfs.canRead(localPath)) {
+                    return new ByteArrayInputStream(vfs.readAllBytes(localPath));
+                }
+            } catch (IOException ignored) {
+                // Fall through to bundled resources.
             }
         }
         return FileFunctions.class.getResourceAsStream("/com/dabomstew/pkrandom/config/" + filename);
@@ -148,23 +166,26 @@ public class FileFunctions {
     }
 
     public static byte[] readFileFullyIntoBuffer(String filename) throws IOException {
-        File fh = new File(filename);
-        if (!fh.exists() || !fh.isFile() || !fh.canRead()) {
+        VfsFileSystem vfs = RandomizerVfs.get();
+        if (!vfs.exists(filename) || !vfs.isFile(filename) || !vfs.canRead(filename)) {
             throw new FileNotFoundException(filename);
         }
-        long fileSize = fh.length();
+        long fileSize = vfs.length(filename);
         if (fileSize > Integer.MAX_VALUE) {
             throw new IOException(filename + " is too long to read in as a byte-array.");
         }
-        FileInputStream fis = new FileInputStream(filename);
-        byte[] buf = readFullyIntoBuffer(fis, (int) fileSize);
-        fis.close();
-        return buf;
+        return vfs.readAllBytes(filename);
     }
 
     public static byte[] readFullyIntoBuffer(InputStream in, int bytes) throws IOException {
         byte[] buf = new byte[bytes];
         readFully(in, buf, 0, bytes);
+        return buf;
+    }
+
+    public static byte[] readFullyIntoBuffer(VfsRandomAccessFile in, int bytes) throws IOException {
+        byte[] buf = new byte[bytes];
+        in.readFully(buf);
         return buf;
     }
 
@@ -175,21 +196,21 @@ public class FileFunctions {
         }
     }
 
-    public static int read2ByteBigEndianIntFromFile(RandomAccessFile file, long offset) throws IOException {
+    public static int read2ByteBigEndianIntFromFile(VfsRandomAccessFile file, long offset) throws IOException {
         byte[] buf = new byte[2];
         file.seek(offset);
         file.readFully(buf);
         return read2ByteIntBigEndian(buf, 0);
     }
 
-    public static int readBigEndianIntFromFile(RandomAccessFile file, long offset) throws IOException {
+    public static int readBigEndianIntFromFile(VfsRandomAccessFile file, long offset) throws IOException {
         byte[] buf = new byte[4];
         file.seek(offset);
         file.readFully(buf);
         return readFullIntBigEndian(buf, 0);
     }
 
-    public static int readIntFromFile(RandomAccessFile file, long offset) throws IOException {
+    public static int readIntFromFile(VfsRandomAccessFile file, long offset) throws IOException {
         byte[] buf = new byte[4];
         file.seek(offset);
         file.readFully(buf);
@@ -197,9 +218,7 @@ public class FileFunctions {
     }
 
     public static void writeBytesToFile(String filename, byte[] data) throws IOException {
-        FileOutputStream fos = new FileOutputStream(filename);
-        fos.write(data);
-        fos.close();
+        RandomizerVfs.get().writeAllBytes(filename, data);
     }
 
     public static byte[] getConfigAsBytes(String filename) throws IOException {

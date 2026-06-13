@@ -1,6 +1,10 @@
 import { randomizerDefaults, randomizerOptionGroups, UPRZX_PROJECT } from './options'
 
 const jobs = new Map()
+const randomizerBaseUrl = '/randomizer/generated/'
+const randomizerWasmUrl = `${randomizerBaseUrl}uprzx.wasm`
+const randomizerRuntimeUrl = `${randomizerBaseUrl}uprzx.wasm-runtime.js`
+let runtimePromise = null
 
 self.onmessage = async ({ data }) => {
   const { id, type, payload } = data
@@ -80,24 +84,93 @@ const getSettingsSchema = async ({ romInfo } = {}) => ({
   validation: validationFor(romInfo)
 })
 
-const randomize = async ({ jobId = crypto.randomUUID?.() || String(Date.now()), rom, settings, seed, outputMode }) => {
+const randomize = async ({
+  jobId = crypto.randomUUID?.() || String(Date.now()),
+  rom,
+  update,
+  settings,
+  seed,
+  outputMode = 'single-file'
+}) => {
   if (!rom) throw workerError('ROM_REQUIRED', 'A ROM file is required')
   const controller = new AbortController()
   jobs.set(jobId, controller)
 
   try {
-    await assertRuntimeAvailable()
+    const runtime = await getRuntime()
     if (controller.signal.aborted) throw workerError('CANCELLED', 'Randomization was cancelled')
 
-    throw workerError(
-      'UPRZX_WASM_NOT_BOUND',
-      'The UPR-ZX WebAssembly runtime exists check passed, but the JS binding has not been wired yet.',
-      {
-        settings,
-        seed,
-        outputMode
-      }
+    const vfs = createVirtualFileSystem()
+    globalThis.__uprzxVfs = vfs
+
+    const sourceRomPath = vfsPath('/input', rom.name)
+    await vfs.writeBlob(sourceRomPath, rom)
+
+    const updatePath = update ? vfsPath('/input', `update-${update.name}`) : ''
+    if (update) {
+      await vfs.writeBlob(updatePath, update)
+    }
+
+    const inspection = parseBridgeJson(runtime.bridge.inspectRom(sourceRomPath), 'inspect ROM')
+    if (!inspection.ok || !inspection.supported) {
+      throw workerError('UPRZX_UNSUPPORTED_ROM', 'UPR-ZX could not identify this ROM.', {
+        inspection
+      })
+    }
+
+    const saveAsDirectory =
+      outputMode === 'layeredfs-directory' ||
+      outputMode === 'layeredfs-archive' ||
+      (inspection.nintendo3ds && !!update)
+    const outputPath = saveAsDirectory
+      ? vfsPath('/output', `${baseName(rom.name)}-layeredfs`)
+      : vfsPath('/output', `${baseName(rom.name)}.randomized.${inspection.defaultExtension || extensionFor(rom.name) || 'rom'}`)
+    const resolvedSettings = resolveSettingsString(settings, runtime.bridge)
+    const seedLong = seedToLong(seed || settings?.seed)
+
+    const response = parseBridgeJson(
+      runtime.bridge.randomize(
+        sourceRomPath,
+        updatePath,
+        outputPath,
+        resolvedSettings.value,
+        seedLong,
+        saveAsDirectory
+      ),
+      'randomize ROM'
     )
+
+    if (!response.ok) {
+      throw workerError('UPRZX_RANDOMIZE_FAILED', response.error || 'UPR-ZX randomization failed.', {
+        log: response.log || null
+      })
+    }
+
+    if (controller.signal.aborted) throw workerError('CANCELLED', 'Randomization was cancelled')
+
+    return {
+      engineVersion: response.engineVersion || UPRZX_PROJECT.version,
+      settingsString: response.settingsString || resolvedSettings.value,
+      settingsSource: resolvedSettings.source,
+      checkValue: response.checkValue,
+      log: response.log || '',
+      changedStarter: response.changedStarter,
+      removedCodeTweaks: response.removedCodeTweaks,
+      output: saveAsDirectory
+        ? directoryOutput(vfs, response.outputPath || outputPath, rom.name, outputMode)
+        : fileOutput(vfs, response.outputPath || outputPath, rom.name),
+      extractedData: null,
+      warnings:
+        resolvedSettings.source === 'upr-zx-default'
+          ? [
+              {
+                code: 'UPRZX_DEFAULT_SETTINGS_USED',
+                message:
+                  'The browser runtime used upstream UPR-ZX default settings because no canonical settings string was supplied.'
+              }
+            ]
+          : []
+    }
   } finally {
     jobs.delete(jobId)
   }
@@ -112,18 +185,303 @@ const cancel = async (jobId) => {
   return { cancelled: !!job }
 }
 
+const getRuntime = async () => {
+  runtimePromise ||= loadRuntime()
+  return runtimePromise
+}
+
+const loadRuntime = async () => {
+  await assertRuntimeAvailable()
+  const runtimeModule = await import(/* @vite-ignore */ absoluteRuntimeUrl(randomizerRuntimeUrl))
+  const load = runtimeModule.load || runtimeModule.default?.load || runtimeModule.default
+  if (typeof load !== 'function') {
+    throw workerError('UPRZX_RUNTIME_LOADER_UNAVAILABLE', 'The UPR-ZX TeaVM loader did not expose a load function.', {
+      runtimeUrl: absoluteRuntimeUrl(randomizerRuntimeUrl),
+      exports: Object.keys(runtimeModule)
+    })
+  }
+
+  const teavm = await load(absoluteRuntimeUrl(randomizerWasmUrl), {
+    stackDeobfuscator: { enabled: false }
+  })
+  if (typeof teavm?.exports?.main !== 'function') {
+    throw workerError('UPRZX_RUNTIME_MAIN_UNAVAILABLE', 'The UPR-ZX WebAssembly runtime did not expose main().', {
+      runtimeUrl: absoluteRuntimeUrl(randomizerRuntimeUrl)
+    })
+  }
+
+  await teavm.exports.main([])
+  const bridge = globalThis.__uprzxBridge
+  if (!bridge?.inspectRom || !bridge?.randomize || !bridge?.settingsStringFromUi || !bridge?.defaultSettingsString) {
+    throw workerError('UPRZX_BRIDGE_UNAVAILABLE', 'The UPR-ZX WebAssembly runtime did not register the browser bridge.')
+  }
+
+  return { teavm, bridge }
+}
+
 const assertRuntimeAvailable = async () => {
-  const runtimeUrl = new URL('/randomizer/generated/uprzx.wasm', self.location.origin)
+  await Promise.all([
+    assertRuntimeFile(randomizerWasmUrl, 'UPRZX_WASM_UNAVAILABLE', 'The UPR-ZX WebAssembly runtime has not been built yet.'),
+    assertRuntimeFile(
+      randomizerRuntimeUrl,
+      'UPRZX_WASM_RUNTIME_UNAVAILABLE',
+      'The UPR-ZX WebAssembly runtime loader has not been built yet.'
+    )
+  ])
+}
+
+const assertRuntimeFile = async (path, code, message) => {
+  const runtimeUrl = new URL(path, self.location.origin)
   const response = await fetch(runtimeUrl, { method: 'HEAD' })
   if (!response.ok) {
     throw workerError(
-      'UPRZX_WASM_UNAVAILABLE',
-      'The UPR-ZX WebAssembly runtime has not been built yet.',
+      code,
+      message,
       {
         runtimeUrl: runtimeUrl.toString()
       }
     )
   }
+}
+
+const absoluteRuntimeUrl = (path) => new URL(path, self.location.origin).toString()
+
+const createVirtualFileSystem = () => {
+  const entries = new Map([['/', { type: 'directory' }]])
+
+  const normalize = (path = '/') => {
+    const value = String(path || '/').replace(/\\/g, '/')
+    const parts = []
+    for (const part of value.split('/')) {
+      if (!part || part === '.') continue
+      if (part === '..') parts.pop()
+      else parts.push(part)
+    }
+    return `/${parts.join('/')}` || '/'
+  }
+
+  const parentPath = (path) => {
+    const normalized = normalize(path)
+    const slash = normalized.lastIndexOf('/')
+    return slash <= 0 ? '/' : normalized.slice(0, slash)
+  }
+
+  const ensureDirectory = (path) => {
+    const normalized = normalize(path)
+    if (entries.get(normalized)?.type === 'file') {
+      throw new Error(`VFS path is a file: ${normalized}`)
+    }
+    const parts = normalized.split('/').filter(Boolean)
+    let current = ''
+    for (const part of parts) {
+      current += `/${part}`
+      if (!entries.has(current)) entries.set(current, { type: 'directory' })
+      if (entries.get(current)?.type !== 'directory') {
+        throw new Error(`VFS path is a file: ${current}`)
+      }
+    }
+  }
+
+  const ensureFile = (path) => {
+    const normalized = normalize(path)
+    ensureDirectory(parentPath(normalized))
+    const existing = entries.get(normalized)
+    if (!existing) entries.set(normalized, { type: 'file', bytes: new Uint8Array(0) })
+    else if (existing.type !== 'file') throw new Error(`VFS path is a directory: ${normalized}`)
+  }
+
+  const bytesFrom = (value) => {
+    if (value instanceof Uint8Array) return new Uint8Array(value)
+    if (ArrayBuffer.isView(value)) {
+      return new Uint8Array(value.buffer.slice(value.byteOffset, value.byteOffset + value.byteLength))
+    }
+    if (value instanceof ArrayBuffer) return new Uint8Array(value.slice(0))
+    return new Uint8Array(value || [])
+  }
+
+  const fileEntry = (path) => {
+    const normalized = normalize(path)
+    const entry = entries.get(normalized)
+    if (!entry || entry.type !== 'file') throw new Error(`VFS file not found: ${normalized}`)
+    return entry
+  }
+
+  const api = {
+    exists: (path) => entries.has(normalize(path)),
+    isFile: (path) => entries.get(normalize(path))?.type === 'file',
+    isDirectory: (path) => entries.get(normalize(path))?.type === 'directory',
+    length: (path) => {
+      const entry = entries.get(normalize(path))
+      return entry?.type === 'file' ? entry.bytes.length : 0
+    },
+    read: (path, position, length) => {
+      const entry = fileEntry(path)
+      const start = Math.max(0, Number(position) || 0)
+      const end = Math.min(entry.bytes.length, start + Math.max(0, Number(length) || 0))
+      return entry.bytes.slice(start, end)
+    },
+    write: (path, position, data) => {
+      const normalized = normalize(path)
+      ensureFile(normalized)
+      const entry = fileEntry(normalized)
+      const start = Math.max(0, Number(position) || 0)
+      const bytes = bytesFrom(data)
+      const nextLength = Math.max(entry.bytes.length, start + bytes.length)
+      const next = new Uint8Array(nextLength)
+      next.set(entry.bytes)
+      next.set(bytes, start)
+      entry.bytes = next
+    },
+    writeAll: (path, data) => {
+      const normalized = normalize(path)
+      ensureDirectory(parentPath(normalized))
+      entries.set(normalized, { type: 'file', bytes: bytesFrom(data) })
+    },
+    writeBlob: async (path, blob) => {
+      api.writeAll(path, new Uint8Array(await blob.arrayBuffer()))
+    },
+    delete: (path) => {
+      const normalized = normalize(path)
+      for (const key of [...entries.keys()]) {
+        if (key === normalized || key.startsWith(`${normalized}/`)) entries.delete(key)
+      }
+    },
+    mkdirs: ensureDirectory,
+    list: (path) => {
+      const normalized = normalize(path)
+      const prefix = normalized === '/' ? '/' : `${normalized}/`
+      return [...entries.keys()].filter((key) => key !== normalized && key.startsWith(prefix) && !key.slice(prefix.length).includes('/'))
+    },
+    ensureFile,
+    setLength: (path, length) => {
+      const normalized = normalize(path)
+      ensureFile(normalized)
+      const entry = fileEntry(normalized)
+      const next = new Uint8Array(Math.max(0, Number(length) || 0))
+      next.set(entry.bytes.slice(0, next.length))
+      entry.bytes = next
+    },
+    readAll: (path) => fileEntry(path).bytes.slice(),
+    filesUnder: (path) => {
+      const normalized = normalize(path)
+      const prefix = normalized === '/' ? '/' : `${normalized}/`
+      return [...entries.entries()]
+        .filter(([key, entry]) => entry.type === 'file' && (key === normalized || key.startsWith(prefix)))
+        .map(([key, entry]) => ({
+          path: key,
+          name: key === normalized ? fileName(key) : key.slice(prefix.length),
+          blob: new Blob([entry.bytes], { type: 'application/octet-stream' }),
+          size: entry.bytes.length
+        }))
+    },
+    normalize
+  }
+
+  return api
+}
+
+const fileOutput = (vfs, outputPath, originalName) => {
+  const normalizedOutputPath = vfs.normalize(outputPath)
+  const bytes = vfs.readAll(normalizedOutputPath)
+  return {
+    mode: 'single-file',
+    path: normalizedOutputPath,
+    filename: fileName(normalizedOutputPath) || defaultOutputName(originalName),
+    type: 'application/octet-stream',
+    blob: new Blob([bytes], { type: 'application/octet-stream' }),
+    size: bytes.length
+  }
+}
+
+const directoryOutput = (vfs, outputPath, originalName, outputMode) => {
+  const normalizedOutputPath = vfs.normalize(outputPath)
+  let entries = vfs.filesUnder(normalizedOutputPath)
+  if (!entries.length) entries = vfs.filesUnder('/output')
+  if (!entries.length) {
+    throw workerError('UPRZX_OUTPUT_MISSING', 'UPR-ZX finished but did not create any output files.', {
+      outputPath: normalizedOutputPath
+    })
+  }
+
+  return {
+    mode: outputMode,
+    path: normalizedOutputPath,
+    filename: `${baseName(originalName)}-layeredfs.tar`,
+    archiveFormat: 'tar',
+    entries,
+    size: entries.reduce((total, entry) => total + (entry.size || 0), 0)
+  }
+}
+
+const parseBridgeJson = (value, action) => {
+  try {
+    return JSON.parse(value)
+  } catch (error) {
+    throw workerError('UPRZX_BRIDGE_JSON_ERROR', `Could not parse UPR-ZX ${action} response.`, {
+      response: value,
+      cause: error.message
+    })
+  }
+}
+
+const resolveSettingsString = (settings, bridge) => {
+  const value =
+    (typeof settings === 'string' && settings) ||
+    settings?.settingsString ||
+    settings?.uprzxSettings ||
+    settings?.string ||
+    settings?.canonical
+
+  if (value) return { value, source: 'provided' }
+  if (settings && typeof settings === 'object') {
+    const response = parseBridgeJson(bridge.settingsStringFromUi(JSON.stringify(settings)), 'encode settings')
+    if (!response.ok) {
+      throw workerError('UPRZX_SETTINGS_ENCODE_FAILED', response.error || 'Could not encode randomizer settings.', {
+        settings
+      })
+    }
+    return { value: response.settingsString, source: 'ui-json' }
+  }
+  return { value: bridge.defaultSettingsString(), source: 'upr-zx-default' }
+}
+
+const seedToLong = (seed) => {
+  const value = String(seed ?? '').trim()
+  if (/^-?\d+$/.test(value)) return clampSignedLong(BigInt(value))
+  if (value) return hashStringToLong(value)
+
+  const random = new Uint32Array(2)
+  crypto.getRandomValues(random)
+  return clampSignedLong((BigInt(random[0]) << 32n) | BigInt(random[1]))
+}
+
+const hashStringToLong = (value) => {
+  let hash = 0xcbf29ce484222325n
+  for (const char of value) {
+    hash ^= BigInt(char.codePointAt(0))
+    hash *= 0x100000001b3n
+  }
+  return clampSignedLong(hash)
+}
+
+const clampSignedLong = (value) => value & ((1n << 63n) - 1n)
+
+const vfsPath = (directory, name) => `/${[directory, safeVfsName(name)].join('/').replace(/\/+/g, '/')}`
+
+const safeVfsName = (name = 'rom') => String(name).replace(/[^a-zA-Z0-9._-]+/g, '_') || 'rom'
+
+const baseName = (name = 'randomized') => {
+  const cleanName = safeVfsName(name)
+  const dot = cleanName.lastIndexOf('.')
+  return dot > 0 ? cleanName.slice(0, dot) : cleanName
+}
+
+const fileName = (path = '') => String(path).replace(/\\/g, '/').split('/').filter(Boolean).pop() || ''
+
+const defaultOutputName = (filename = 'randomized.rom') => {
+  const dot = filename.lastIndexOf('.')
+  if (dot < 1) return `${filename}.randomized`
+  return `${filename.slice(0, dot)}.randomized${filename.slice(dot)}`
 }
 
 const hashFile = async (file) => {

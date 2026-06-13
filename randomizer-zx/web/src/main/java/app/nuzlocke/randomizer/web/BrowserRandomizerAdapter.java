@@ -17,7 +17,6 @@ import com.dabomstew.pkrandom.romhandlers.Gen7RomHandler;
 import com.dabomstew.pkrandom.romhandlers.RomHandler;
 
 import java.io.ByteArrayOutputStream;
-import java.io.File;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -88,25 +87,25 @@ public final class BrowserRandomizerAdapter {
             settings.setCustomNames(FileFunctions.getCustomNames());
             Settings.TweakForROMFeedback feedback = settings.tweakForRom(romHandler);
 
-            File outputFile = new File(request.outputPath);
+            String outputPath = request.outputPath;
             if (!saveAsDirectory) {
                 List<String> bannedExtensions = new ArrayList<>(Arrays.asList("sgb", "gbc", "gba", "nds", "cxi"));
                 bannedExtensions.remove(romHandler.getDefaultExtension());
-                outputFile = FileFunctions.fixFilename(outputFile, romHandler.getDefaultExtension(), bannedExtensions);
+                outputPath = FileFunctions.fixFilenamePath(outputPath, romHandler.getDefaultExtension(), bannedExtensions);
                 if (romHandler instanceof AbstractDSRomHandler || romHandler instanceof Abstract3DSRomHandler) {
                     String currentFilename = romHandler.loadedFilename();
-                    if (currentFilename != null && currentFilename.equals(outputFile.getAbsolutePath())) {
+                    if (currentFilename != null && currentFilename.equals(outputPath)) {
                         return RandomizerResponse.error("Refusing to overwrite the loaded ROM", logBytes);
                     }
                 }
             }
 
             Randomizer randomizer = new Randomizer(settings, romHandler, BUNDLE, saveAsDirectory);
-            int checkValue = randomizer.randomize(outputFile.getAbsolutePath(), log, request.seed);
+            int checkValue = randomizer.randomize(outputPath, log, request.seed);
 
             return RandomizerResponse.ok(
                     checkValue,
-                    outputFile.getAbsolutePath(),
+                    outputPath,
                     Version.VERSION_STRING,
                     settings.toString(),
                     feedback.isChangedStarter(),

@@ -11,6 +11,9 @@ import com.dabomstew.pkrandom.RomFunctions;
 
 import com.dabomstew.pkrandom.exceptions.CannotWriteToLocationException;
 import com.dabomstew.pkrandom.exceptions.RandomizerIOException;
+import com.dabomstew.pkrandom.io.RandomizerVfs;
+import com.dabomstew.pkrandom.io.VfsFileSystem;
+import com.dabomstew.pkrandom.io.VfsRandomAccessFile;
 import cuecompressors.BLZCoder;
 
 /*----------------------------------------------------------------------------*/
@@ -39,7 +42,7 @@ public class NDSRom {
     private String romCode;
     private byte version;
     private String romFilename;
-    private RandomAccessFile baseRom;
+    private VfsRandomAccessFile baseRom;
     private boolean romOpen;
     private Map<String, NDSFile> files;
     private Map<Integer, NDSFile> filesByID;
@@ -61,20 +64,20 @@ public class NDSRom {
     private static final int banner_align = 0x1FF, file_align = 0x1FF;
 
     public NDSRom(String filename) throws IOException {
+        VfsFileSystem vfs = RandomizerVfs.get();
         this.romFilename = filename;
-        this.baseRom = new RandomAccessFile(filename, "r");
+        this.baseRom = vfs.openRandomAccess(filename, "r");
         this.romOpen = true;
         // TMP folder?
-        String rawFilename = new File(filename).getName();
+        String rawFilename = vfs.name(filename);
         String dataFolder = "tmp_" + rawFilename.substring(0, rawFilename.lastIndexOf('.'));
         // remove nonsensical chars
         dataFolder = dataFolder.replaceAll("[^A-Za-z0-9_]+", "");
-        File tmpFolder = new File(SysConstants.ROOT_PATH + dataFolder);
-        tmpFolder.mkdir();
-        if (tmpFolder.canWrite()) {
+        String tmpFolder = vfs.join(SysConstants.ROOT_PATH, dataFolder);
+        vfs.mkdirs(tmpFolder);
+        if (vfs.canWrite(tmpFolder)) {
             writingEnabled = true;
-            this.tmpFolder = SysConstants.ROOT_PATH + dataFolder + File.separator;
-            tmpFolder.deleteOnExit();
+            this.tmpFolder = tmpFolder + vfs.separator();
         } else {
             writingEnabled = false;
         }
@@ -86,7 +89,7 @@ public class NDSRom {
 
     public void reopenROM() throws IOException {
         if (!this.romOpen) {
-            this.baseRom = new RandomAccessFile(this.romFilename, "r");
+            this.baseRom = RandomizerVfs.get().openRandomAccess(this.romFilename, "r");
             this.romOpen = true;
         }
     }
@@ -231,7 +234,8 @@ public class NDSRom {
         this.reopenROM();
 
         // Initialize new ROM
-        RandomAccessFile fNew = new RandomAccessFile(filename, "rw");
+        VfsRandomAccessFile fNew = RandomizerVfs.get().openRandomAccess(filename, "rw");
+        fNew.setLength(0);
 
         int headersize = readFromFile(this.baseRom, 0x84, 4);
         this.baseRom.seek(0);
@@ -434,7 +438,7 @@ public class NDSRom {
         closeROM();
     }
 
-    private void copy(RandomAccessFile from, RandomAccessFile to, int bytes) throws IOException {
+    private void copy(VfsRandomAccessFile from, VfsRandomAccessFile to, int bytes) throws IOException {
         int sizeof_copybuf = Math.min(256 * 1024, bytes);
         byte[] copybuf = new byte[sizeof_copybuf];
         while (bytes > 0) {
@@ -541,11 +545,7 @@ public class NDSRom {
 
             // Now actually make the copy or w/e
             if (writingEnabled) {
-                File arm9file = new File(tmpFolder + "arm9.bin");
-                FileOutputStream fos = new FileOutputStream(arm9file);
-                fos.write(arm9);
-                fos.close();
-                arm9file.deleteOnExit();
+                FileFunctions.writeBytesToFile(tmpFolder + "arm9.bin", arm9);
                 this.arm9_ramstored = null;
                 return arm9;
             } else {
@@ -584,9 +584,7 @@ public class NDSRom {
         }
         arm9_changed = true;
         if (writingEnabled) {
-            FileOutputStream fos = new FileOutputStream(new File(tmpFolder + "arm9.bin"));
-            fos.write(arm9);
-            fos.close();
+            FileFunctions.writeBytesToFile(tmpFolder + "arm9.bin", arm9);
         } else {
             if (this.arm9_ramstored.length == arm9.length) {
                 // copy new in
@@ -656,7 +654,7 @@ public class NDSRom {
         return tmpFolder;
     }
 
-    public RandomAccessFile getBaseRom() {
+    public VfsRandomAccessFile getBaseRom() {
         return baseRom;
     }
 
@@ -678,13 +676,13 @@ public class NDSRom {
         }
     }
 
-    private int readFromFile(RandomAccessFile file, int size) throws IOException {
+    private int readFromFile(VfsRandomAccessFile file, int size) throws IOException {
         return readFromFile(file, -1, size);
     }
 
     // use -1 offset to read from current position
     // useful if you want to read blocks
-    private int readFromFile(RandomAccessFile file, int offset, int size) throws IOException {
+    private int readFromFile(VfsRandomAccessFile file, int offset, int size) throws IOException {
         byte[] buf = new byte[size];
         if (offset >= 0)
             file.seek(offset);
@@ -696,11 +694,11 @@ public class NDSRom {
         return result;
     }
 
-    public void writeToFile(RandomAccessFile file, int size, int value) throws IOException {
+    public void writeToFile(VfsRandomAccessFile file, int size, int value) throws IOException {
         writeToFile(file, -1, size, value);
     }
 
-    private void writeToFile(RandomAccessFile file, int offset, int size, int value) throws IOException {
+    private void writeToFile(VfsRandomAccessFile file, int offset, int size, int value) throws IOException {
         byte[] buf = new byte[size];
         for (int i = 0; i < size; i++) {
             buf[i] = (byte) ((value >> (i * 8)) & 0xFF);

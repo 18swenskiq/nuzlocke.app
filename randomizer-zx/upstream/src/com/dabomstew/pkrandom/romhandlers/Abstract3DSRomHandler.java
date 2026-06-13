@@ -30,9 +30,10 @@ import com.dabomstew.pkrandom.ctr.NCCH;
 import com.dabomstew.pkrandom.exceptions.CannotWriteToLocationException;
 import com.dabomstew.pkrandom.exceptions.EncryptedROMException;
 import com.dabomstew.pkrandom.exceptions.RandomizerIOException;
+import com.dabomstew.pkrandom.io.RandomizerVfs;
+import com.dabomstew.pkrandom.io.VfsRandomAccessFile;
 import com.dabomstew.pkrandom.pokemon.Type;
 
-import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.security.NoSuchAlgorithmException;
@@ -257,8 +258,8 @@ public abstract class Abstract3DSRomHandler extends AbstractRomHandler {
             if (ncchStartingOffset == -1) {
                 return null;
             }
-            FileInputStream fis = new FileInputStream(filename);
-            fis.skip(ncchStartingOffset + 0x150);
+            VfsRandomAccessFile fis = RandomizerVfs.get().openRandomAccess(filename, "r");
+            fis.seek(ncchStartingOffset + 0x150);
             byte[] productCode = FileFunctions.readFullyIntoBuffer(fis, 0x10);
             fis.close();
             return new String(productCode, "UTF-8").trim();
@@ -273,8 +274,8 @@ public abstract class Abstract3DSRomHandler extends AbstractRomHandler {
             if (ncchStartingOffset == -1) {
                 return null;
             }
-            FileInputStream fis = new FileInputStream(filename);
-            fis.skip(ncchStartingOffset + 0x118);
+            VfsRandomAccessFile fis = RandomizerVfs.get().openRandomAccess(filename, "r");
+            fis.seek(ncchStartingOffset + 0x118);
             byte[] programId = FileFunctions.readFullyIntoBuffer(fis, 0x8);
             fis.close();
             reverseArray(programId);

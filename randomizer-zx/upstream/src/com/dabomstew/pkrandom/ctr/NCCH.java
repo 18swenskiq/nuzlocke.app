@@ -26,6 +26,9 @@ import com.dabomstew.pkrandom.SysConstants;
 import com.dabomstew.pkrandom.exceptions.CannotWriteToLocationException;
 import com.dabomstew.pkrandom.exceptions.EncryptedROMException;
 import com.dabomstew.pkrandom.exceptions.RandomizerIOException;
+import com.dabomstew.pkrandom.io.RandomizerVfs;
+import com.dabomstew.pkrandom.io.VfsFileSystem;
+import com.dabomstew.pkrandom.io.VfsRandomAccessFile;
 import cuecompressors.BLZCoder;
 
 import java.io.*;
@@ -37,7 +40,7 @@ import java.util.*;
 
 public class NCCH {
     private String romFilename;
-    private RandomAccessFile baseRom;
+    private VfsRandomAccessFile baseRom;
     private long ncchStartingOffset;
     private String productCode;
     private String titleId;
@@ -71,8 +74,9 @@ public class NCCH {
     private static final int metadata_unused = 0xFFFFFFFF;
 
     public NCCH(String filename, String productCode, String titleId) throws IOException {
+        VfsFileSystem vfs = RandomizerVfs.get();
         this.romFilename = filename;
-        this.baseRom = new RandomAccessFile(filename, "r");
+        this.baseRom = vfs.openRandomAccess(filename, "r");
         this.ncchStartingOffset = NCCH.getCXIOffsetInFile(filename);
         this.productCode = productCode;
         this.titleId = titleId;
@@ -83,16 +87,15 @@ public class NCCH {
         }
 
         // TMP folder?
-        String rawFilename = new File(filename).getName();
+        String rawFilename = vfs.name(filename);
         String dataFolder = "tmp_" + rawFilename.substring(0, rawFilename.lastIndexOf('.'));
         // remove nonsensical chars
         dataFolder = dataFolder.replaceAll("[^A-Za-z0-9_]+", "");
-        File tmpFolder = new File(SysConstants.ROOT_PATH + dataFolder);
-        tmpFolder.mkdirs();
-        if (tmpFolder.canWrite()) {
+        String tmpFolder = vfs.join(SysConstants.ROOT_PATH, dataFolder);
+        vfs.mkdirs(tmpFolder);
+        if (vfs.canWrite(tmpFolder)) {
             writingEnabled = true;
-            this.tmpFolder = SysConstants.ROOT_PATH + dataFolder + File.separator;
-            tmpFolder.deleteOnExit();
+            this.tmpFolder = tmpFolder + vfs.separator();
         } else {
             writingEnabled = false;
         }
@@ -116,7 +119,7 @@ public class NCCH {
 
     public void reopenROM() throws IOException {
         if (!this.romOpen) {
-            baseRom = new RandomAccessFile(this.romFilename, "r");
+            baseRom = RandomizerVfs.get().openRandomAccess(this.romFilename, "r");
             romOpen = true;
         }
     }
@@ -251,7 +254,8 @@ public class NCCH {
         this.reopenROM();
 
         // Initialize new ROM
-        RandomAccessFile fNew = new RandomAccessFile(filename, "rw");
+        VfsRandomAccessFile fNew = RandomizerVfs.get().openRandomAccess(filename, "rw");
+        fNew.setLength(0);
 
         // Read the header and exheader and write it to the output ROM
         byte[] header = new byte[header_and_exheader_size];
@@ -344,7 +348,7 @@ public class NCCH {
         fNew.close();
     }
 
-    private long rebuildExefs(RandomAccessFile fNew, long newExefsOffset) throws IOException, NoSuchAlgorithmException {
+    private long rebuildExefs(VfsRandomAccessFile fNew, long newExefsOffset) throws IOException, NoSuchAlgorithmException {
         System.out.println("NCCH: Rebuilding exefs...");
         byte[] code = getCode();
         if (codeCompressed) {
@@ -406,7 +410,7 @@ public class NCCH {
         return exefsLength;
     }
 
-    private long rebuildRomfs(RandomAccessFile fNew, long newRomfsOffset) throws IOException, NoSuchAlgorithmException {
+    private long rebuildRomfs(VfsRandomAccessFile fNew, long newRomfsOffset) throws IOException, NoSuchAlgorithmException {
         System.out.println("NCCH: Rebuilding romfs...");
 
         // Start by copying the romfs header straight from the original ROM. We'll update the
@@ -582,24 +586,21 @@ public class NCCH {
     }
 
     public void saveAsLayeredFS(String outputPath) throws IOException {
-        String layeredFSRootPath = outputPath + File.separator + titleId + File.separator;
-        File layeredFSRootDir = new File(layeredFSRootPath);
-        if (!layeredFSRootDir.exists()) {
-            layeredFSRootDir.mkdirs();
+        VfsFileSystem vfs = RandomizerVfs.get();
+        String layeredFSRootPath = vfs.join(outputPath, titleId);
+        if (!vfs.exists(layeredFSRootPath)) {
+            vfs.mkdirs(layeredFSRootPath);
         } else {
-            purgeDirectory(layeredFSRootDir);
+            purgeDirectory(layeredFSRootPath);
         }
-        String romfsRootPath = layeredFSRootPath + "romfs" + File.separator;
-        File romfsDir = new File(romfsRootPath);
-        if (!romfsDir.exists()) {
-            romfsDir.mkdirs();
+        String romfsRootPath = vfs.join(layeredFSRootPath, "romfs");
+        if (!vfs.exists(romfsRootPath)) {
+            vfs.mkdirs(romfsRootPath);
         }
 
         if (codeChanged) {
             byte[] code = getCode();
-            FileOutputStream fos = new FileOutputStream(new File(layeredFSRootPath + "code.bin"));
-            fos.write(code);
-            fos.close();
+            FileFunctions.writeBytesToFile(vfs.join(layeredFSRootPath, "code.bin"), code);
         }
 
         for (Map.Entry<String, RomfsFile> entry : romfsFiles.entrySet()) {
@@ -610,31 +611,28 @@ public class NCCH {
         }
     }
 
-    private void purgeDirectory(File directory) {
-        for (File file : directory.listFiles()) {
-            if (file.isDirectory()) {
+    private void purgeDirectory(String directory) throws IOException {
+        VfsFileSystem vfs = RandomizerVfs.get();
+        for (String file : vfs.list(directory)) {
+            if (vfs.isDirectory(file)) {
                 purgeDirectory(file);
             }
-            file.delete();
+            vfs.delete(file);
         }
     }
 
     private void writeRomfsFileToLayeredFS(RomfsFile file, String layeredFSRootPath) throws IOException {
+        VfsFileSystem vfs = RandomizerVfs.get();
         String[] romfsPathComponents = file.fullPath.split("/");
-        StringBuffer buffer = new StringBuffer(layeredFSRootPath);
+        String currentPath = layeredFSRootPath;
         for (int i = 0; i < romfsPathComponents.length - 1; i++) {
-            buffer.append(romfsPathComponents[i]);
-            buffer.append(File.separator);
-            File currentDir = new File(buffer.toString());
-            if (!currentDir.exists()) {
-                currentDir.mkdirs();
+            currentPath = vfs.join(currentPath, romfsPathComponents[i]);
+            if (!vfs.exists(currentPath)) {
+                vfs.mkdirs(currentPath);
             }
         }
-        buffer.append(romfsPathComponents[romfsPathComponents.length - 1]);
-        String romfsFilePath = buffer.toString();
-        FileOutputStream fos = new FileOutputStream(new File(romfsFilePath));
-        fos.write(file.getOverrideContents());
-        fos.close();
+        String romfsFilePath = vfs.join(currentPath, romfsPathComponents[romfsPathComponents.length - 1]);
+        FileFunctions.writeBytesToFile(romfsFilePath, file.getOverrideContents());
     }
 
     public boolean isDecrypted() throws IOException {
@@ -677,11 +675,7 @@ public class NCCH {
 
             // Now actually make the copy or w/e
             if (writingEnabled) {
-                File arm9file = new File(tmpFolder + ".code");
-                FileOutputStream fos = new FileOutputStream(arm9file);
-                fos.write(code);
-                fos.close();
-                arm9file.deleteOnExit();
+                FileFunctions.writeBytesToFile(tmpFolder + ".code", code);
                 this.codeRamstored = null;
                 return code;
             } else {
@@ -707,9 +701,7 @@ public class NCCH {
         }
         codeChanged = true;
         if (writingEnabled) {
-            FileOutputStream fos = new FileOutputStream(new File(tmpFolder + ".code"));
-            fos.write(code);
-            fos.close();
+            FileFunctions.writeBytesToFile(tmpFolder + ".code", code);
         } else {
             if (this.codeRamstored.length == code.length) {
                 // copy new in
@@ -787,7 +779,7 @@ public class NCCH {
         return tmpFolder;
     }
 
-    public RandomAccessFile getBaseRom() {
+    public VfsRandomAccessFile getBaseRom() {
         return baseRom;
     }
 
@@ -876,8 +868,9 @@ public class NCCH {
     // firmware updates, among other things. This function's determines the location
     // of the CXI regardless of the container.
     public static long getCXIOffsetInFile(String filename) {
+        VfsRandomAccessFile rom = null;
         try {
-            RandomAccessFile rom = new RandomAccessFile(filename, "r");
+            rom = RandomizerVfs.get().openRandomAccess(filename, "r");
             int ciaHeaderSize = FileFunctions.readIntFromFile(rom, 0x00);
             if (ciaHeaderSize == cia_header_size) {
                 // This *might* be a CIA; let's do our best effort to try to get
@@ -903,7 +896,6 @@ public class NCCH {
             // exist a totally-valid CXI or CCI whose first four bytes just so
             // *happen* to be the same as the first four bytes of a CIA file.
             int magic = FileFunctions.readBigEndianIntFromFile(rom, ncch_and_ncsd_magic_offset);
-            rom.close();
             if (magic == ncch_magic) {
                 // Magic is NCCH, so this just a straight-up NCCH/CXI; there is no container
                 // around the game data. Thus, the CXI offset is the beginning of the file.
@@ -918,6 +910,13 @@ public class NCCH {
             }
         } catch (IOException e) {
             throw new RandomizerIOException(e);
+        } finally {
+            if (rom != null) {
+                try {
+                    rom.close();
+                } catch (IOException ignored) {
+                }
+            }
         }
     }
 
