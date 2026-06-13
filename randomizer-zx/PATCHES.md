@@ -34,6 +34,8 @@ small documented patches over broad rewrites.
   provide the nested Unicode block metadata class.
 - Keep 3DS NCCH hashing and default seed generation free of `java.security`;
   TeaVM WASM GC does not provide `MessageDigest` or `SecureRandom`.
+- Keep compressor error paths free of `System.exit`; browser/library builds
+  throw exceptions instead of terminating the process.
 - Keep Swing/AWT GUI packages, launcher code, and local test utilities excluded
   from TeaVM output.
 - Preserve 3DS update behavior: if a game update is supplied, output must be

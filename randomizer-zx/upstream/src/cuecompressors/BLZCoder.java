@@ -123,7 +123,7 @@ public class BLZCoder {
 
     private void EXIT(String text) {
         System.out.print(text);
-        System.exit(0);
+        throw new IllegalStateException(text);
     }
 
     private void Save(String filename, int[] buffer, int length) {
