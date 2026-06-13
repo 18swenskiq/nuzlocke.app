@@ -26,13 +26,13 @@ package com.dabomstew.pkrandom;
 /*--  along with this program. If not, see <http://www.gnu.org/licenses/>.  --*/
 /*----------------------------------------------------------------------------*/
 
-import java.security.SecureRandom;
 import java.util.Random;
 
 public class RandomSource {
 
     private static Random source = new Random();
     private static Random cosmeticSource = new Random();
+    private static Random seedSource = new Random();
     private static int calls = 0;
     private static int cosmeticCalls = 0;
     private static Random instance = new RandomSourceInstance();
@@ -104,7 +104,8 @@ public class RandomSource {
 
     public static long pickSeed() {
         long value = 0;
-        byte[] by = SecureRandom.getSeed(6);
+        byte[] by = new byte[6];
+        seedSource.nextBytes(by);
         for (int i = 0; i < by.length; i++) {
             value |= ((long) by[i] & 0xffL) << (8 * i);
         }

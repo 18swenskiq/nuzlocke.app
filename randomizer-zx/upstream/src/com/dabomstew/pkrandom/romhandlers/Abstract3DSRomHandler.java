@@ -36,7 +36,6 @@ import com.dabomstew.pkrandom.pokemon.Type;
 
 import java.io.IOException;
 import java.io.PrintStream;
-import java.security.NoSuchAlgorithmException;
 import java.util.List;
 import java.util.Random;
 
@@ -89,7 +88,7 @@ public abstract class Abstract3DSRomHandler extends AbstractRomHandler {
         try {
             savingROM();
             baseRom.saveAsNCCH(filename, getGameAcronym(), seed);
-        } catch (IOException | NoSuchAlgorithmException e) {
+        } catch (IOException e) {
             if (e.getMessage().contains("Access is denied")) {
                 throw new CannotWriteToLocationException("The randomizer cannot write to this location: " + filename);
             } else {

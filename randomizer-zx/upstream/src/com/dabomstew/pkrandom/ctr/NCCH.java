@@ -23,6 +23,7 @@ package com.dabomstew.pkrandom.ctr;
 
 import com.dabomstew.pkrandom.FileFunctions;
 import com.dabomstew.pkrandom.SysConstants;
+import com.dabomstew.pkrandom.crypto.Sha256;
 import com.dabomstew.pkrandom.exceptions.CannotWriteToLocationException;
 import com.dabomstew.pkrandom.exceptions.EncryptedROMException;
 import com.dabomstew.pkrandom.exceptions.RandomizerIOException;
@@ -35,7 +36,6 @@ import java.io.*;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.security.*;
 import java.util.*;
 
 public class NCCH {
@@ -250,7 +250,7 @@ public class NCCH {
         }
     }
 
-    public void saveAsNCCH(String filename, String gameAcronym, long seed) throws IOException, NoSuchAlgorithmException {
+    public void saveAsNCCH(String filename, String gameAcronym, long seed) throws IOException {
         this.reopenROM();
 
         // Initialize new ROM
@@ -324,19 +324,18 @@ public class NCCH {
         fNew.write((int) newRomfsLength / media_unit_size);
 
         // Lastly, reconstruct the superblock hashes
-        MessageDigest digest = MessageDigest.getInstance("SHA-256");
         int exefsHashRegionSize = FileFunctions.readIntFromFile(baseRom, ncchStartingOffset + 0x1A8) * media_unit_size;
         byte[] exefsDataToHash = new byte[exefsHashRegionSize];
         fNew.seek(newExefsOffset);
         fNew.readFully(exefsDataToHash);
-        byte[] exefsSuperblockHash = digest.digest(exefsDataToHash);
+        byte[] exefsSuperblockHash = Sha256.digest(exefsDataToHash);
         fNew.seek(0x1C0);
         fNew.write(exefsSuperblockHash);
         int romfsHashRegionSize = FileFunctions.readIntFromFile(baseRom, ncchStartingOffset + 0x1B8) * media_unit_size;
         byte[] romfsDataToHash = new byte[romfsHashRegionSize];
         fNew.seek(newRomfsOffset);
         fNew.readFully(romfsDataToHash);
-        byte[] romfsSuperblockHash = digest.digest(romfsDataToHash);
+        byte[] romfsSuperblockHash = Sha256.digest(romfsDataToHash);
         fNew.seek(0x1E0);
         fNew.write(romfsSuperblockHash);
 
@@ -348,7 +347,7 @@ public class NCCH {
         fNew.close();
     }
 
-    private long rebuildExefs(VfsRandomAccessFile fNew, long newExefsOffset) throws IOException, NoSuchAlgorithmException {
+    private long rebuildExefs(VfsRandomAccessFile fNew, long newExefsOffset) throws IOException {
         System.out.println("NCCH: Rebuilding exefs...");
         byte[] code = getCode();
         if (codeCompressed) {
@@ -373,7 +372,6 @@ public class NCCH {
         }
 
         // Write the file data, then hash the data and write the hashes in reverse order
-        MessageDigest digest = MessageDigest.getInstance("SHA-256");
         long endingOffset = 0;
         for (int i = 0; i < newHeaders.length; i++) {
             ExefsFileHeader header = newHeaders[i];
@@ -391,7 +389,7 @@ public class NCCH {
                 }
                 fNew.seek(newExefsOffset + 0x200 + header.offset);
                 fNew.write(data);
-                byte[] hash = digest.digest(data);
+                byte[] hash = Sha256.digest(data);
                 fNew.seek(newExefsOffset + 0x200 - ((i + 1) * 0x20));
                 fNew.write(hash);
                 endingOffset = newExefsOffset + 0x200 + header.offset + header.size;
@@ -410,7 +408,7 @@ public class NCCH {
         return exefsLength;
     }
 
-    private long rebuildRomfs(VfsRandomAccessFile fNew, long newRomfsOffset) throws IOException, NoSuchAlgorithmException {
+    private long rebuildRomfs(VfsRandomAccessFile fNew, long newRomfsOffset) throws IOException {
         System.out.println("NCCH: Rebuilding romfs...");
 
         // Start by copying the romfs header straight from the original ROM. We'll update the
@@ -510,12 +508,11 @@ public class NCCH {
         long newLevel1Offset = newLevel3Offset + alignLong(newLevel3HashdataSize, level3HashBlockSize);
         long newLevel2Offset = newLevel1Offset + alignLong(newLevel1HashdataSize, level1HashBlockSize);
         long newFileEndingOffset = alignLong(newLevel2Offset + newLevel2HashdataSize, level2HashBlockSize);
-        MessageDigest digest = MessageDigest.getInstance("SHA-256");
         byte[] dataToHash = new byte[level3HashBlockSize];
         for (long i = 0; i < numberOfLevel3HashBlocks; i++) {
             fNew.seek(newLevel3Offset + (i * level3HashBlockSize));
             fNew.readFully(dataToHash);
-            byte[] hash = digest.digest(dataToHash);
+            byte[] hash = Sha256.digest(dataToHash);
             fNew.seek(newLevel2Offset + (i * 0x20));
             fNew.write(hash);
         }
@@ -529,7 +526,7 @@ public class NCCH {
         for (long i = 0; i < numberOfLevel2HashBlocks; i++) {
             fNew.seek(newLevel2Offset + (i * level2HashBlockSize));
             fNew.readFully(dataToHash);
-            byte[] hash = digest.digest(dataToHash);
+            byte[] hash = Sha256.digest(dataToHash);
             fNew.seek(newLevel1Offset + (i * 0x20));
             fNew.write(hash);
         }
@@ -538,7 +535,7 @@ public class NCCH {
         for (long i = 0; i < numberOfLevel1HashBlocks; i++) {
             fNew.seek(newLevel1Offset + (i * level1HashBlockSize));
             fNew.readFully(dataToHash);
-            byte[] hash = digest.digest(dataToHash);
+            byte[] hash = Sha256.digest(dataToHash);
             fNew.seek(newRomfsOffset + 0x60 + (i * 0x20));
             fNew.write(hash);
         }

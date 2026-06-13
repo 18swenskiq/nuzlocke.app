@@ -30,6 +30,10 @@ small documented patches over broad rewrites.
   strings still need to produce the same CRC over trimmed nonempty config lines.
 - Keep `.ini` and `.tbl` parsing in ROM/text handlers on `TextScanner`, a
   browser-safe line reader with the subset of `Scanner` behavior UPR-ZX uses.
+- Keep Gen 5 text decoding free of `Character.UnicodeBlock`; TeaVM does not
+  provide the nested Unicode block metadata class.
+- Keep 3DS NCCH hashing and default seed generation free of `java.security`;
+  TeaVM WASM GC does not provide `MessageDigest` or `SecureRandom`.
 - Keep Swing/AWT GUI packages, launcher code, and local test utilities excluded
   from TeaVM output.
 - Preserve 3DS update behavior: if a game update is supplied, output must be

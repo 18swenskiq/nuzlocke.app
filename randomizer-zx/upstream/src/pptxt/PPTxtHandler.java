@@ -202,8 +202,7 @@ public class PPTxtHandler {
                     if (encText.get(i).get(j).get(k) == 0xFFFF) {
                         chars.add("\\xFFFF");
                     } else {
-                        if (encText.get(i).get(j).get(k) > 20 && encText.get(i).get(j).get(k) <= 0xFFF0
-                                && Character.UnicodeBlock.of(encText.get(i).get(j).get(k)) != null) {
+                        if (isPlainBmpCharacter(encText.get(i).get(j).get(k))) {
                             chars.add("" + ((char) encText.get(i).get(j).get(k).intValue()));
                         } else {
                             String num = String.format("%04X", encText.get(i).get(j).get(k));
@@ -222,6 +221,10 @@ public class PPTxtHandler {
             strings.set(sn, bulkReplace(strings.get(sn), pokeToTextPattern, pokeToText));
         }
         return strings;
+    }
+
+    private static boolean isPlainBmpCharacter(int codePoint) {
+        return codePoint > 20 && codePoint <= 0xFFF0 && (codePoint < 0xD800 || codePoint > 0xDFFF);
     }
 
     private static String bulkReplace(String string, Pattern pattern, Map<String, String> replacements) {
