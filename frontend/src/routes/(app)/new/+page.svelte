@@ -8,8 +8,7 @@
     Button,
     Tabs,
     Input,
-    Logo,
-    Tooltip
+    Logo
   } from '$lib/components/core'
   import AutoComplete from '$c/core/AutoCompleteV2.svelte'
 
@@ -44,6 +43,7 @@
 
   let validGames = filterObj(Games, (g) => g.supported)
 
+  let createMode = null
   let gameName = ''
   const handleNewGame = async () => {
     if (randomizingRun) return
@@ -68,29 +68,22 @@
     }
   }
 
-  import { generateRoute } from '$lib/services/routeGenerator'
-
-  const handleGenGame = () => {
-    if (!selectedGame?.supported)
-      return alert(`Sorry, ${selectedGame?.title} is currently not supported`)
-
-    const result = generateRoute(selectedGame?.pid)
-    if (result) {
-      let createid = selected
-      if (selectedGame?.difficulty)
-        createid += difficultyOptions?.[difficulty]?.id || ''
-
-      savedGames.update(createGame(gameName, createid, JSON.stringify(result)))
-      window.location = '/game'
-    }
-  }
-
   let hoverActive = false
   const togglehover = () => (hoverActive = !hoverActive)
 
   let selected
   const handleSelect = (id) => () =>
     selected === id ? (selected = null) : (selected = id)
+
+  const selectCreateMode = (mode) => () => {
+    createMode = mode
+    romError = ''
+  }
+
+  const handleBackToCreateMode = () => {
+    createMode = null
+    romError = ''
+  }
 
   let randomizeRun = false
   let romFile = null
@@ -428,6 +421,7 @@
     name: d.split(':')[0] || 'Normal'
   }))
   $: selectedGame = validGames[selected]
+  $: randomizeRun = createMode === 'randomized'
   $: is3dsRom = ['3ds', 'cia', 'cxi', 'cci'].includes(romInfo?.extension)
   $: availableOutputModes = (
     randomizerCapabilities?.outputModes || randomizerOutputModes
@@ -449,10 +443,53 @@
 </svelte:head>
 
 <ScreenContainer
-  title="Select a New Nuzlocke"
+  title={createMode === 'randomized'
+    ? 'Create Randomized Run'
+    : createMode === 'default'
+      ? 'Select a New Nuzlocke'
+      : 'Create New Run'}
   icon={File}
   className="mb-20 relative"
 >
+  {#if !createMode}
+    <div class="grid gap-4 sm:grid-cols-2">
+      <button
+        type="button"
+        on:click={selectCreateMode('default')}
+        class="group grid aspect-square min-h-[16rem] place-items-center gap-4 rounded-lg border-2 border-gray-700 bg-gray-100 p-6 text-center text-gray-700 transition hover:border-orange-500 hover:text-orange-500 dark:border-gray-200 dark:bg-gray-900 dark:text-gray-200 dark:hover:border-orange-400 dark:hover:text-orange-400"
+      >
+        <Icon icon={File} class="h-12 w-12 fill-current" />
+        <strong class="max-w-[16ch] text-xl leading-6">
+          Create Run with Default Settings
+        </strong>
+        <span class="max-w-[28ch] text-sm leading-5 opacity-75">
+          Create a run which uses the default encounter and trainer data for the
+          selected game.
+        </span>
+      </button>
+
+      <button
+        type="button"
+        on:click={selectCreateMode('randomized')}
+        class="group grid aspect-square min-h-[16rem] place-items-center gap-4 rounded-lg border-2 border-gray-700 bg-gray-100 p-6 text-center text-gray-700 transition hover:border-orange-500 hover:text-orange-500 dark:border-gray-200 dark:bg-gray-900 dark:text-gray-200 dark:hover:border-orange-400 dark:hover:text-orange-400"
+      >
+        <Icon icon={Dice} class="h-12 w-12 fill-current" />
+        <strong class="max-w-[16ch] text-xl leading-6">
+          Create Randomized Run
+        </strong>
+        <span class="max-w-[28ch] text-sm leading-5 opacity-75">
+          Create a run which randomizes an uploaded ROM and populates the
+          encounter and trainer data with the randomized settings.
+        </span>
+      </button>
+    </div>
+  {:else if createMode === 'default'}
+    <div class="mb-5">
+      <Button rounded className="w-full sm:w-auto" on:click={handleBackToCreateMode}>
+        Back
+      </Button>
+    </div>
+
   <div class="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:gap-y-4">
     <Input
       rounded
@@ -507,164 +544,10 @@
       </div>
     {/if}
 
-    <label
-      class="inline-flex h-10 cursor-pointer items-center gap-2 rounded-lg border-2 border-gray-700 bg-gray-100 px-4 text-sm text-gray-700 transition hover:border-orange-500 hover:text-orange-500 dark:border-gray-200 dark:bg-gray-900 dark:text-gray-200 dark:hover:border-orange-400 dark:hover:text-orange-400"
-    >
-      <input
-        type="checkbox"
-        class="h-4 w-4 accent-orange-500"
-        bind:checked={randomizeRun}
-      />
-      Custom randomized run
-    </label>
-
     <Button rounded {disabled} on:click={handleNewGame}>
-      {randomizingRun
-        ? 'Randomizing ROM'
-        : randomizeRun
-          ? 'Create randomized run'
-          : 'Create game'}
+      Create game
     </Button>
-    <div>
-      <Tooltip
-        >Generate a game with pre-randomized encounters, designed for games like
-        Scarlet & Violet with overworld only encounters</Tooltip
-      >
-      <Button
-        className="w-full md:w-auto"
-        rounded
-        {disabled}
-        on:click={handleGenGame}
-      >
-        Randomize
-        <Icon inline="true" icon={Dice} class="inline" />
-      </Button>
-    </div>
   </div>
-
-  {#if randomizeRun}
-    <section
-      class="mt-6 grid gap-5 rounded-lg border-2 border-gray-200 bg-gray-50 p-4 text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
-    >
-      <div class="flex flex-col gap-3 md:flex-row md:items-center">
-        <label
-          class="inline-flex h-10 cursor-pointer items-center justify-center gap-2 rounded-lg border-2 border-gray-700 bg-gray-100 px-4 font-bold transition hover:border-orange-500 hover:text-orange-500 dark:border-gray-200 dark:bg-gray-900 dark:hover:border-orange-400 dark:hover:text-orange-400"
-        >
-          <Icon inline={true} icon={CloudUpload} class="fill-current" />
-          Upload ROM
-          <input
-            class="sr-only"
-            type="file"
-            accept={romAccept}
-            on:change={handleRomUpload}
-          />
-        </label>
-
-        {#if romInfo}
-          <span class="text-sm">
-            <b>{romInfo.name}</b>
-            <span class="opacity-60">({romInfo.sizeLabel})</span>
-          </span>
-        {/if}
-
-        {#if inspectingRom}
-          <span class="text-sm font-bold text-orange-500">Inspecting ROM</span>
-        {/if}
-
-        {#if randomizingRun}
-          <span class="text-sm font-bold text-orange-500">Randomizing ROM</span>
-        {/if}
-
-        {#if romError}
-          <span class="text-sm font-bold text-red-500">{romError}</span>
-        {/if}
-      </div>
-
-      <div class="grid gap-4 md:grid-cols-[14rem_1fr]">
-        <Input
-          rounded
-          placeholder="Seed"
-          maxlength={32}
-          bind:value={randomizerOptions.seed}
-        />
-
-        <p class="self-center text-xs leading-5 opacity-70">
-          ROM bytes stay local in this browser. The tracker stores the selected
-          options and ROM fingerprint with the run.
-          {#if randomizerCapabilities}
-            {summarizeCapabilities(randomizerCapabilities)}.
-          {/if}
-        </p>
-      </div>
-
-      {#if is3dsRom}
-        <div class="grid gap-4 md:grid-cols-[14rem_1fr]">
-          <label
-            class="inline-flex h-10 cursor-pointer items-center justify-center gap-2 rounded-lg border-2 border-gray-700 bg-gray-100 px-4 text-sm font-bold transition hover:border-orange-500 hover:text-orange-500 dark:border-gray-200 dark:bg-gray-900 dark:hover:border-orange-400 dark:hover:text-orange-400"
-          >
-            <Icon inline={true} icon={CloudUpload} class="fill-current" />
-            Game update
-            <input
-              class="sr-only"
-              type="file"
-              accept=".cia,.3ds,.cxi,.cci"
-              on:change={handleUpdateUpload}
-            />
-          </label>
-
-          <div class="grid gap-2 md:grid-cols-2">
-            <label class="grid gap-1 text-xs font-bold uppercase">
-              Output
-              <select
-                class="h-10 rounded-lg border-2 border-gray-200 bg-white px-3 text-sm normal-case tracking-normal text-gray-800 transition focus:border-gray-700 focus:outline-none dark:border-gray-600 dark:bg-gray-950 dark:text-gray-100 dark:focus:border-gray-200"
-                bind:value={outputMode}
-              >
-                {#each availableOutputModes as mode}
-                  <option
-                    value={mode.id}
-                    disabled={romInfo?.requiresLayeredFs && mode.id === 'single-file'}
-                  >
-                    {mode.label}
-                  </option>
-                {/each}
-              </select>
-            </label>
-
-            {#if updateInfo}
-              <p class="self-end text-sm">
-                <b>{updateInfo.name}</b>
-                <span class="opacity-60">({updateInfo.sizeLabel})</span>
-              </p>
-            {/if}
-          </div>
-        </div>
-      {/if}
-
-      <div class="grid gap-4 md:grid-cols-2">
-        {#each randomizerSchema?.groups || randomizerOptionGroups as group}
-          <fieldset class="grid gap-3 border-t-2 border-gray-200 pt-3 dark:border-gray-700">
-            <legend class="pr-3 font-bold">{group.name}</legend>
-
-            {#each group.options as option}
-              <label class="grid gap-1 text-xs font-bold uppercase">
-                {option.label}
-                <select
-                  class="h-10 rounded-lg border-2 border-gray-200 bg-white px-3 text-sm normal-case tracking-normal text-gray-800 transition focus:border-gray-700 focus:outline-none dark:border-gray-600 dark:bg-gray-950 dark:text-gray-100 dark:focus:border-gray-200"
-                  value={randomizerOptions[option.id]}
-                  disabled={option.disabled}
-                  on:change={setRandomizerOption(option.id)}
-                >
-                  {#each option.choices as [value, label]}
-                    <option {value}>{label}</option>
-                  {/each}
-                </select>
-              </label>
-            {/each}
-          </fieldset>
-        {/each}
-      </div>
-    </section>
-  {/if}
 
   <Tabs
     name="gens"
@@ -710,6 +593,201 @@
       {/if}
     {/each}
   </ul>
+  {:else}
+    <div class="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+      <Button rounded className="w-full sm:w-auto" on:click={handleBackToCreateMode}>
+        Back
+      </Button>
+
+      <p class="text-sm leading-5 opacity-70">
+        ROM bytes stay local in this browser.
+        {#if randomizerCapabilities}
+          {summarizeCapabilities(randomizerCapabilities)}.
+        {/if}
+      </p>
+    </div>
+
+    <div class="grid gap-5">
+      <div class="grid gap-3 md:grid-cols-[1fr_1fr_auto] md:items-start">
+        <Input
+          rounded
+          placeholder="Name"
+          maxlength={26}
+          bind:value={gameName}
+        />
+
+        <AutoComplete
+          max={Object.keys(validGames).length}
+          itemF={(_) => Object.keys(validGames)}
+          labelF={(i) => i && Games[i].title}
+          placeholder="Tracker game"
+          bind:selected
+        >
+          <div
+            class="flex inline-flex h-auto max-h-8 w-full items-center px-2 py-6"
+            slot="option"
+            let:option={i}
+            let:label
+          >
+            {#if Games[i].logo}
+              <Logo
+                src="{IMG}{Games[i].logo}"
+                alt={Games[i].title + ' logo'}
+                class="mr-2 w-12"
+                role="presentation"
+                aspect="192x96"
+              />
+            {/if}
+            {@html label}
+          </div>
+        </AutoComplete>
+
+        <Button
+          rounded
+          {disabled}
+          className="w-full md:w-auto"
+          on:click={handleNewGame}
+        >
+          {randomizingRun ? 'Randomizing ROM' : 'Create randomized run'}
+        </Button>
+      </div>
+
+      {#if selectedGame?.difficulty}
+        <div class="flex flex-col gap-2 md:inline-flex md:flex-row">
+          <span
+            ><b>Difficulty</b><br /><small
+              >This game offers multiple difficulty choices</small
+            ></span
+          >
+          <Radio
+            name="difficulty"
+            options={difficultyOptions.map((d) => d.name)}
+            className="!flex-row gap-x-1"
+            bind:selected={difficulty}
+          />
+        </div>
+      {/if}
+
+      <section
+        class="grid gap-5 rounded-lg border-2 border-gray-200 bg-gray-50 p-4 text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
+      >
+        <div class="flex flex-col gap-3 md:flex-row md:items-center">
+          <label
+            class="inline-flex h-10 cursor-pointer items-center justify-center gap-2 rounded-lg border-2 border-gray-700 bg-gray-100 px-4 font-bold transition hover:border-orange-500 hover:text-orange-500 dark:border-gray-200 dark:bg-gray-900 dark:hover:border-orange-400 dark:hover:text-orange-400"
+          >
+            <Icon inline={true} icon={CloudUpload} class="fill-current" />
+            Upload ROM
+            <input
+              class="sr-only"
+              type="file"
+              accept={romAccept}
+              on:change={handleRomUpload}
+            />
+          </label>
+
+          {#if romInfo}
+            <span class="text-sm">
+              <b>{romInfo.name}</b>
+              <span class="opacity-60">({romInfo.sizeLabel})</span>
+            </span>
+          {/if}
+
+          {#if inspectingRom}
+            <span class="text-sm font-bold text-orange-500">Inspecting ROM</span>
+          {/if}
+
+          {#if randomizingRun}
+            <span class="text-sm font-bold text-orange-500">Randomizing ROM</span>
+          {/if}
+
+          {#if romError}
+            <span class="text-sm font-bold text-red-500">{romError}</span>
+          {/if}
+        </div>
+
+        <div class="grid gap-4 md:grid-cols-[14rem_1fr]">
+          <Input
+            rounded
+            placeholder="Seed"
+            maxlength={32}
+            bind:value={randomizerOptions.seed}
+          />
+
+          <p class="self-center text-xs leading-5 opacity-70">
+            The tracker stores the selected options and ROM fingerprint with the
+            run.
+          </p>
+        </div>
+
+        {#if is3dsRom}
+          <div class="grid gap-4 md:grid-cols-[14rem_1fr]">
+            <label
+              class="inline-flex h-10 cursor-pointer items-center justify-center gap-2 rounded-lg border-2 border-gray-700 bg-gray-100 px-4 text-sm font-bold transition hover:border-orange-500 hover:text-orange-500 dark:border-gray-200 dark:bg-gray-900 dark:hover:border-orange-400 dark:hover:text-orange-400"
+            >
+              <Icon inline={true} icon={CloudUpload} class="fill-current" />
+              Game update
+              <input
+                class="sr-only"
+                type="file"
+                accept=".cia,.3ds,.cxi,.cci"
+                on:change={handleUpdateUpload}
+              />
+            </label>
+
+            <div class="grid gap-2 md:grid-cols-2">
+              <label class="grid gap-1 text-xs font-bold uppercase">
+                Output
+                <select
+                  class="h-10 rounded-lg border-2 border-gray-200 bg-white px-3 text-sm normal-case tracking-normal text-gray-800 transition focus:border-gray-700 focus:outline-none dark:border-gray-600 dark:bg-gray-950 dark:text-gray-100 dark:focus:border-gray-200"
+                  bind:value={outputMode}
+                >
+                  {#each availableOutputModes as mode}
+                    <option
+                      value={mode.id}
+                      disabled={romInfo?.requiresLayeredFs && mode.id === 'single-file'}
+                    >
+                      {mode.label}
+                    </option>
+                  {/each}
+                </select>
+              </label>
+
+              {#if updateInfo}
+                <p class="self-end text-sm">
+                  <b>{updateInfo.name}</b>
+                  <span class="opacity-60">({updateInfo.sizeLabel})</span>
+                </p>
+              {/if}
+            </div>
+          </div>
+        {/if}
+
+        <div class="grid gap-4 md:grid-cols-2">
+          {#each randomizerSchema?.groups || randomizerOptionGroups as group}
+            <fieldset class="grid gap-3 border-t-2 border-gray-200 pt-3 dark:border-gray-700">
+              <legend class="pr-3 font-bold">{group.name}</legend>
+
+              {#each group.options as option}
+                <label class="grid gap-1 text-xs font-bold uppercase">
+                  {option.label}
+                  <select
+                    class="h-10 rounded-lg border-2 border-gray-200 bg-white px-3 text-sm normal-case tracking-normal text-gray-800 transition focus:border-gray-700 focus:outline-none dark:border-gray-600 dark:bg-gray-950 dark:text-gray-100 dark:focus:border-gray-200"
+                    value={randomizerOptions[option.id]}
+                    disabled={option.disabled}
+                    on:change={setRandomizerOption(option.id)}
+                  >
+                    {#each option.choices as [value, label]}
+                      <option {value}>{label}</option>
+                    {/each}
+                  </select>
+                </label>
+              {/each}
+            </fieldset>
+          {/each}
+        </div>
+      </section>
+    </div>
+  {/if}
 </ScreenContainer>
 
 <div class="h-28 w-8" />
