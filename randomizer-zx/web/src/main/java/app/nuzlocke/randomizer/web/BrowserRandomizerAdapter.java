@@ -42,8 +42,7 @@ import java.util.Set;
 public final class BrowserRandomizerAdapter {
     public static final String ADAPTER_VERSION = "0.1.0";
 
-    private static final ResourceBundle BUNDLE =
-            ResourceBundle.getBundle("com/dabomstew/pkrandom/newgui/Bundle");
+    private static final ResourceBundle BUNDLE = BrowserResourceBundle.load();
 
     private BrowserRandomizerAdapter() {
     }
