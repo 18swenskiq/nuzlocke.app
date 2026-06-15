@@ -521,6 +521,7 @@ public final class BrowserRandomizerExports {
                 + "\"nintendoDs\":" + inspection.nintendoDs + ","
                 + "\"clean\":" + inspection.clean + ","
                 + "\"settingsSchema\":" + (inspection.settingsSchemaJson == null ? "null" : inspection.settingsSchemaJson)
+                + ",\"diagnostics\":" + (inspection.diagnosticsJson == null ? "null" : inspection.diagnosticsJson)
                 + "}";
     }
 

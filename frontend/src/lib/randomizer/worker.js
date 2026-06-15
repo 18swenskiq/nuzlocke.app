@@ -43,7 +43,11 @@ const inspectRom = async ({ rom, update }) => {
     throw workerError('UNSUPPORTED_EXTENSION', 'Unsupported ROM file extension', { extension })
   }
 
-  const [runtime, sha256] = await Promise.all([getRuntime(), hashFile(rom)])
+  const [runtime, sha256, localHeader] = await Promise.all([
+    getRuntime(),
+    hashFile(rom),
+    readRomDebugHeader(rom)
+  ])
   const updateSha256 = update ? await hashFile(update) : null
   const vfs = createVirtualFileSystem()
   globalThis.__uprzxVfs = vfs
@@ -63,7 +67,9 @@ const inspectRom = async ({ rom, update }) => {
 
   if (!inspection.ok || !inspection.supported) {
     throw workerError('UPRZX_UNSUPPORTED_ROM', 'UPR-ZX could not identify this ROM.', {
-      inspection
+      inspection,
+      localHeader,
+      vfs: vfsDebug(vfs, sourceRomPath)
     })
   }
 
@@ -71,7 +77,7 @@ const inspectRom = async ({ rom, update }) => {
     throw workerError(
       'UPRZX_UNCLEAN_ROM',
       'UPR-ZX recognized this ROM, but it does not appear to be a clean official ROM.',
-      { inspection }
+      { inspection, localHeader, vfs: vfsDebug(vfs, sourceRomPath) }
     )
   }
 
@@ -82,6 +88,7 @@ const inspectRom = async ({ rom, update }) => {
     extension,
     lastModified: rom.lastModified,
     sha256,
+    localHeader,
     sourceRomPath: inspection.sourceRomPath || sourceRomPath,
     supported: !!inspection.supported,
     clean: !!inspection.clean,
@@ -575,7 +582,13 @@ const hashStringToLong = (value) => {
 
 const clampSignedLong = (value) => value & ((1n << 63n) - 1n)
 
-const vfsPath = (directory, name) => `/${[directory, safeVfsName(name)].join('/').replace(/\/+/g, '/')}`
+const vfsPath = (directory, name) =>
+  `/${[directory, safeVfsName(name)]
+    .join('/')
+    .replace(/\\/g, '/')
+    .split('/')
+    .filter(Boolean)
+    .join('/')}`
 
 const safeVfsName = (name = 'rom') => String(name).replace(/[^a-zA-Z0-9._-]+/g, '_') || 'rom'
 
@@ -599,6 +612,48 @@ const hashFile = async (file) => {
     .map((byte) => byte.toString(16).padStart(2, '0'))
     .join('')
 }
+
+const readRomDebugHeader = async (file) => {
+  const bytes = new Uint8Array(await file.slice(0, Math.min(file.size, 0x150)).arrayBuffer())
+  return {
+    size: file.size,
+    extension: extensionFor(file.name),
+    gbTitle: ascii(bytes, 0x134, 16),
+    gbCode: ascii(bytes, 0x13f, 4),
+    gbVersion: byteAt(bytes, 0x14c),
+    gbHeaderChecksum: hexByte(byteAt(bytes, 0x14d)),
+    gbGlobalChecksum: `${hexByte(byteAt(bytes, 0x14e))}${hexByte(byteAt(bytes, 0x14f))}`,
+    gbaTitle: ascii(bytes, 0xa0, 12),
+    gbaCode: ascii(bytes, 0xac, 4),
+    gbaMaker: ascii(bytes, 0xb0, 2),
+    gbaVersion: byteAt(bytes, 0xbc),
+    first16: hexBytes(bytes.slice(0, 16))
+  }
+}
+
+const ascii = (bytes, offset, length) => {
+  if (offset + length > bytes.length) return ''
+  return [...bytes.slice(offset, offset + length)]
+    .map((byte) => (byte >= 32 && byte <= 126 ? String.fromCharCode(byte) : ''))
+    .join('')
+    .replace(/\0/g, '')
+    .trim()
+}
+
+const byteAt = (bytes, offset) => (offset < bytes.length ? bytes[offset] : null)
+
+const hexByte = (value) => (typeof value === 'number' ? value.toString(16).padStart(2, '0').toUpperCase() : null)
+
+const hexBytes = (bytes) => [...bytes].map(hexByte).join(' ')
+
+const vfsDebug = (vfs, path) => ({
+  path,
+  normalizedPath: vfs.normalize(path),
+  exists: vfs.exists(path),
+  isFile: vfs.isFile(path),
+  length: vfs.length(path),
+  first16: hexBytes(vfs.read(path, 0, 16))
+})
 
 const normalizeSettingsSchema = (schema, { requiresLayeredFs = false } = {}) => {
   const groups = Array.isArray(schema?.groups)

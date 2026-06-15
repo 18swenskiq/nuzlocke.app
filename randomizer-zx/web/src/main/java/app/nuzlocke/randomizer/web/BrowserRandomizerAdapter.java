@@ -5,6 +5,9 @@ import com.dabomstew.pkrandom.RandomSource;
 import com.dabomstew.pkrandom.Randomizer;
 import com.dabomstew.pkrandom.Settings;
 import com.dabomstew.pkrandom.Version;
+import com.dabomstew.pkrandom.io.RandomizerVfs;
+import com.dabomstew.pkrandom.io.VfsFileSystem;
+import com.dabomstew.pkrandom.io.VfsRandomAccessFile;
 import com.dabomstew.pkrandom.pokemon.Encounter;
 import com.dabomstew.pkrandom.pokemon.EncounterSet;
 import com.dabomstew.pkrandom.pokemon.Move;
@@ -45,14 +48,32 @@ public final class BrowserRandomizerAdapter {
     }
 
     public static RomInspection inspectRom(String sourceRomPath) {
-        RomHandler romHandler = createLoadableHandler(sourceRomPath);
+        List<String> handlerDiagnostics = new ArrayList<>();
+        RomHandler romHandler = createLoadableHandler(sourceRomPath, handlerDiagnostics);
+        String diagnosticsJson = diagnosticsJson(sourceRomPath, handlerDiagnostics);
         if (romHandler == null) {
-            return RomInspection.unsupported(sourceRomPath);
+            return RomInspection.unsupported(sourceRomPath, diagnosticsJson);
         }
 
-        boolean loaded = romHandler.loadRom(sourceRomPath);
+        boolean loaded;
+        try {
+            loaded = romHandler.loadRom(sourceRomPath);
+        } catch (Throwable error) {
+            handlerDiagnostics.add("{"
+                    + "\"handler\":" + quote(romHandler.getClass().getSimpleName()) + ","
+                    + "\"stage\":\"loadRom\","
+                    + "\"exception\":" + quote(error.getClass().getName()) + ","
+                    + "\"message\":" + quote(error.getMessage())
+                    + "}");
+            return RomInspection.unsupported(sourceRomPath, diagnosticsJson(sourceRomPath, handlerDiagnostics));
+        }
         if (!loaded) {
-            return RomInspection.unsupported(sourceRomPath);
+            handlerDiagnostics.add("{"
+                    + "\"handler\":" + quote(romHandler.getClass().getSimpleName()) + ","
+                    + "\"stage\":\"loadRom\","
+                    + "\"loadable\":false"
+                    + "}");
+            return RomInspection.unsupported(sourceRomPath, diagnosticsJson(sourceRomPath, handlerDiagnostics));
         }
 
         return new RomInspection(
@@ -66,7 +87,8 @@ public final class BrowserRandomizerAdapter {
                 romHandler instanceof Abstract3DSRomHandler,
                 romHandler instanceof AbstractDSRomHandler,
                 romHandler.isRomValid(),
-                BrowserRandomizerSchema.forRom(romHandler, BUNDLE)
+                BrowserRandomizerSchema.forRom(romHandler, BUNDLE),
+                diagnosticsJson
         );
     }
 
@@ -139,9 +161,34 @@ public final class BrowserRandomizerAdapter {
     }
 
     private static RomHandler createLoadableHandler(String sourceRomPath) {
+        return createLoadableHandler(sourceRomPath, null);
+    }
+
+    private static RomHandler createLoadableHandler(String sourceRomPath, List<String> diagnostics) {
         for (RomHandler.Factory factory : factories()) {
-            if (factory.isLoadable(sourceRomPath)) {
+            String handlerName = factoryName(factory);
+            try {
+                boolean loadable = factory.isLoadable(sourceRomPath);
+                if (diagnostics != null) {
+                    diagnostics.add("{"
+                            + "\"handler\":" + quote(handlerName) + ","
+                            + "\"stage\":\"isLoadable\","
+                            + "\"loadable\":" + loadable
+                            + "}");
+                }
+                if (!loadable) {
+                    continue;
+                }
                 return factory.create(RandomSource.instance());
+            } catch (Throwable error) {
+                if (diagnostics != null) {
+                    diagnostics.add("{"
+                            + "\"handler\":" + quote(handlerName) + ","
+                            + "\"stage\":\"isLoadable\","
+                            + "\"exception\":" + quote(error.getClass().getName()) + ","
+                            + "\"message\":" + quote(error.getMessage())
+                            + "}");
+                }
             }
         }
         return null;
@@ -157,6 +204,187 @@ public final class BrowserRandomizerAdapter {
                 new Gen6RomHandler.Factory(),
                 new Gen7RomHandler.Factory()
         };
+    }
+
+    private static String factoryName(RomHandler.Factory factory) {
+        if (factory instanceof Gen1RomHandler.Factory) {
+            return "Gen1RomHandler";
+        }
+        if (factory instanceof Gen2RomHandler.Factory) {
+            return "Gen2RomHandler";
+        }
+        if (factory instanceof Gen3RomHandler.Factory) {
+            return "Gen3RomHandler";
+        }
+        if (factory instanceof Gen4RomHandler.Factory) {
+            return "Gen4RomHandler";
+        }
+        if (factory instanceof Gen5RomHandler.Factory) {
+            return "Gen5RomHandler";
+        }
+        if (factory instanceof Gen6RomHandler.Factory) {
+            return "Gen6RomHandler";
+        }
+        if (factory instanceof Gen7RomHandler.Factory) {
+            return "Gen7RomHandler";
+        }
+        return "UnknownRomHandler";
+    }
+
+    private static String diagnosticsJson(String sourceRomPath, List<String> handlerDiagnostics) {
+        return "{"
+                + "\"file\":" + fileDiagnosticsJson(sourceRomPath) + ","
+                + "\"resources\":" + resourceDiagnosticsJson() + ","
+                + "\"handlers\":[" + join(handlerDiagnostics) + "]"
+                + "}";
+    }
+
+    private static String fileDiagnosticsJson(String sourceRomPath) {
+        VfsFileSystem vfs = RandomizerVfs.get();
+        boolean exists = false;
+        boolean isFile = false;
+        boolean canRead = false;
+        long length = -1;
+        byte[] header = new byte[0];
+        String exception = null;
+        String message = null;
+
+        try {
+            exists = vfs.exists(sourceRomPath);
+            isFile = vfs.isFile(sourceRomPath);
+            canRead = vfs.canRead(sourceRomPath);
+            length = vfs.length(sourceRomPath);
+            header = readHeader(sourceRomPath, 0x150);
+        } catch (Exception error) {
+            exception = error.getClass().getName();
+            message = error.getMessage();
+        }
+
+        return "{"
+                + "\"path\":" + quote(sourceRomPath) + ","
+                + "\"exists\":" + exists + ","
+                + "\"isFile\":" + isFile + ","
+                + "\"canRead\":" + canRead + ","
+                + "\"length\":" + length + ","
+                + "\"read336Length\":" + readProbeLength(sourceRomPath, 0x150) + ","
+                + "\"read4096Length\":" + readProbeLength(sourceRomPath, 0x1000) + ","
+                + "\"read1MiBLength\":" + readProbeLength(sourceRomPath, 0x100000) + ","
+                + "\"first16\":" + quote(hex(header, 0, Math.min(16, header.length))) + ","
+                + "\"gbTitle\":" + quote(ascii(header, 0x134, 16)) + ","
+                + "\"gbCode\":" + quote(ascii(header, 0x13F, 4)) + ","
+                + "\"gbVersion\":" + byteValue(header, 0x14C) + ","
+                + "\"gbHeaderChecksum\":" + quote(hex(header, 0x14D, 1)) + ","
+                + "\"gbGlobalChecksum\":" + quote(hex(header, 0x14E, 2)) + ","
+                + "\"gbaTitle\":" + quote(ascii(header, 0xA0, 12)) + ","
+                + "\"gbaCode\":" + quote(ascii(header, 0xAC, 4)) + ","
+                + "\"gbaMaker\":" + quote(ascii(header, 0xB0, 2)) + ","
+                + "\"gbaVersion\":" + byteValue(header, 0xBC)
+                + (exception == null ? "" : ",\"exception\":" + quote(exception) + ",\"message\":" + quote(message))
+                + "}";
+    }
+
+    private static String resourceDiagnosticsJson() {
+        String[] names = new String[] {
+                "gen1_offsets.ini",
+                "gen2_offsets.ini",
+                "gen3_offsets.ini",
+                "gen4_offsets.ini",
+                "gen5_offsets.ini",
+                "gen6_offsets.ini",
+                "gen7_offsets.ini"
+        };
+        List<String> entries = new ArrayList<>();
+        for (String name : names) {
+            entries.add(quote(name) + ":" + configExists(name));
+        }
+        return "{" + join(entries) + "}";
+    }
+
+    private static boolean configExists(String name) {
+        try {
+            return FileFunctions.configExists(name);
+        } catch (Throwable ignored) {
+            return false;
+        }
+    }
+
+    private static int readProbeLength(String sourceRomPath, int length) {
+        VfsRandomAccessFile file = null;
+        try {
+            file = RandomizerVfs.get().openRandomAccess(sourceRomPath, "r");
+            byte[] buffer = new byte[length];
+            int read = file.read(buffer, 0, length);
+            return Math.max(read, 0);
+        } catch (Exception ignored) {
+            return -1;
+        } finally {
+            if (file != null) {
+                try {
+                    file.close();
+                } catch (Exception ignored) {
+                    // Diagnostic helper only.
+                }
+            }
+        }
+    }
+
+    private static byte[] readHeader(String sourceRomPath, int length) throws Exception {
+        VfsRandomAccessFile file = RandomizerVfs.get().openRandomAccess(sourceRomPath, "r");
+        try {
+            byte[] buffer = new byte[length];
+            int read = file.read(buffer, 0, length);
+            if (read <= 0) {
+                return new byte[0];
+            }
+            if (read == length) {
+                return buffer;
+            }
+            byte[] partial = new byte[read];
+            System.arraycopy(buffer, 0, partial, 0, read);
+            return partial;
+        } finally {
+            file.close();
+        }
+    }
+
+    private static String ascii(byte[] bytes, int offset, int length) {
+        if (offset < 0 || length <= 0 || offset + length > bytes.length) {
+            return "";
+        }
+        StringBuilder out = new StringBuilder();
+        for (int i = offset; i < offset + length; i++) {
+            int value = bytes[i] & 0xFF;
+            if (value >= 32 && value <= 126) {
+                out.append((char) value);
+            }
+        }
+        return out.toString().trim();
+    }
+
+    private static int byteValue(byte[] bytes, int offset) {
+        if (offset < 0 || offset >= bytes.length) {
+            return -1;
+        }
+        return bytes[offset] & 0xFF;
+    }
+
+    private static String hex(byte[] bytes, int offset, int length) {
+        if (offset < 0 || length <= 0 || offset >= bytes.length) {
+            return "";
+        }
+        int end = Math.min(bytes.length, offset + length);
+        StringBuilder out = new StringBuilder();
+        for (int i = offset; i < end; i++) {
+            if (out.length() > 0) {
+                out.append(' ');
+            }
+            String value = Integer.toHexString(bytes[i] & 0xFF).toUpperCase();
+            if (value.length() < 2) {
+                out.append('0');
+            }
+            out.append(value);
+        }
+        return out.toString();
     }
 
     private static String extractTrackerData(RomHandler romHandler, Settings settings) {
@@ -656,6 +884,7 @@ public final class BrowserRandomizerAdapter {
         public final boolean nintendoDs;
         public final boolean clean;
         public final String settingsSchemaJson;
+        public final String diagnosticsJson;
 
         private RomInspection(
                 boolean supported,
@@ -668,7 +897,8 @@ public final class BrowserRandomizerAdapter {
                 boolean nintendo3ds,
                 boolean nintendoDs,
                 boolean clean,
-                String settingsSchemaJson
+                String settingsSchemaJson,
+                String diagnosticsJson
         ) {
             this.supported = supported;
             this.sourceRomPath = sourceRomPath;
@@ -681,10 +911,11 @@ public final class BrowserRandomizerAdapter {
             this.nintendoDs = nintendoDs;
             this.clean = clean;
             this.settingsSchemaJson = settingsSchemaJson;
+            this.diagnosticsJson = diagnosticsJson;
         }
 
-        private static RomInspection unsupported(String sourceRomPath) {
-            return new RomInspection(false, sourceRomPath, null, null, null, null, 0, false, false, false, null);
+        private static RomInspection unsupported(String sourceRomPath, String diagnosticsJson) {
+            return new RomInspection(false, sourceRomPath, null, null, null, null, 0, false, false, false, null, diagnosticsJson);
         }
     }
 
