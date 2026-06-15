@@ -1,4 +1,4 @@
-import { randomizerDefaults, randomizerOptionGroups, UPRZX_PROJECT } from './options'
+import { UPRZX_PROJECT } from './options'
 
 const jobs = new Map()
 const randomizerBaseUrl = '/randomizer/generated/'
@@ -43,8 +43,37 @@ const inspectRom = async ({ rom, update }) => {
     throw workerError('UNSUPPORTED_EXTENSION', 'Unsupported ROM file extension', { extension })
   }
 
-  const [sha256, header] = await Promise.all([hashFile(rom), readHeader(rom)])
+  const [runtime, sha256] = await Promise.all([getRuntime(), hashFile(rom)])
   const updateSha256 = update ? await hashFile(update) : null
+  const vfs = createVirtualFileSystem()
+  globalThis.__uprzxVfs = vfs
+
+  const sourceRomPath = vfsPath('/input', rom.name)
+  await vfs.writeBlob(sourceRomPath, rom)
+
+  const updatePath = update ? vfsPath('/input', `update-${update.name}`) : ''
+  if (update) {
+    await vfs.writeBlob(updatePath, update)
+  }
+
+  const inspection = parseBridgeJson(
+    callBridge('inspect ROM', () => runtime.bridge.inspectRom(sourceRomPath)),
+    'inspect ROM'
+  )
+
+  if (!inspection.ok || !inspection.supported) {
+    throw workerError('UPRZX_UNSUPPORTED_ROM', 'UPR-ZX could not identify this ROM.', {
+      inspection
+    })
+  }
+
+  if (!inspection.clean) {
+    throw workerError(
+      'UPRZX_UNCLEAN_ROM',
+      'UPR-ZX recognized this ROM, but it does not appear to be a clean official ROM.',
+      { inspection }
+    )
+  }
 
   return {
     name: rom.name,
@@ -53,9 +82,23 @@ const inspectRom = async ({ rom, update }) => {
     extension,
     lastModified: rom.lastModified,
     sha256,
-    container: detectContainer(extension, header),
-    likelyGeneration: generationForExtension(extension),
-    requiresLayeredFs: !!update && ['3ds', 'cia', 'cxi', 'cci'].includes(extension),
+    sourceRomPath: inspection.sourceRomPath || sourceRomPath,
+    supported: !!inspection.supported,
+    clean: !!inspection.clean,
+    romName: inspection.name,
+    romCode: inspection.code,
+    code: inspection.code,
+    generation: inspection.generation || null,
+    supportLevel: inspection.supportLevel,
+    defaultExtension: inspection.defaultExtension,
+    nintendo3ds: !!inspection.nintendo3ds,
+    nintendoDs: !!inspection.nintendoDs,
+    container: containerForInspection(inspection, extension),
+    likelyGeneration: inspection.generation ? [inspection.generation] : [],
+    requiresLayeredFs: !!update && !!inspection.nintendo3ds,
+    settingsSchema: normalizeSettingsSchema(inspection.settingsSchema, {
+      requiresLayeredFs: !!update && !!inspection.nintendo3ds
+    }),
     update: update
       ? {
           name: update.name,
@@ -68,21 +111,10 @@ const inspectRom = async ({ rom, update }) => {
   }
 }
 
-const getSettingsSchema = async ({ romInfo } = {}) => ({
-  engine: {
-    ...UPRZX_PROJECT,
-    adapter: 'web-adapter-0.1.0'
-  },
-  defaults: randomizerDefaults,
-  groups: randomizerOptionGroups.map((group) => ({
-    ...group,
-    options: group.options.map((option) => ({
-      ...option,
-      disabled: isUnsupportedOption(option.id, romInfo)
-    }))
-  })),
-  validation: validationFor(romInfo)
-})
+const getSettingsSchema = async ({ romInfo } = {}) =>
+  normalizeSettingsSchema(romInfo?.settingsSchema, {
+    requiresLayeredFs: !!romInfo?.requiresLayeredFs
+  })
 
 const randomize = async ({
   jobId = crypto.randomUUID?.() || String(Date.now()),
@@ -227,7 +259,13 @@ const loadRuntime = async () => {
 
   await runtimeStage('initialize Java exports', () => teavm.exports.main([]))
   const bridge = createExportBridge(teavm.exports) || globalThis.__uprzxBridge
-  if (!bridge?.inspectRom || !bridge?.randomize || !bridge?.settingsStringFromUi || !bridge?.defaultSettingsString) {
+  if (
+    !bridge?.inspectRom ||
+    !bridge?.settingsSchema ||
+    !bridge?.randomize ||
+    !bridge?.settingsStringFromUi ||
+    !bridge?.defaultSettingsString
+  ) {
     throw workerError('UPRZX_BRIDGE_UNAVAILABLE', 'The UPR-ZX WebAssembly runtime did not expose the browser bridge.', {
       exports: exportNames(teavm?.exports || {}),
       hasLegacyBridge: !!globalThis.__uprzxBridge
@@ -255,6 +293,7 @@ const createExportBridge = (runtimeExports = {}) => {
   const directBridge = validBridge({
     defaultSettingsString: runtimeExports.defaultSettingsString,
     inspectRom: runtimeExports.inspectRom,
+    settingsSchema: runtimeExports.settingsSchema,
     settingsStringFromUi: runtimeExports.settingsStringFromUi,
     randomize: runtimeExports.randomize
   })
@@ -264,6 +303,7 @@ const createExportBridge = (runtimeExports = {}) => {
   return validBridge({
     defaultSettingsString: exportedClass?.defaultSettingsString?.bind(exportedClass),
     inspectRom: exportedClass?.inspectRom?.bind(exportedClass),
+    settingsSchema: exportedClass?.settingsSchema?.bind(exportedClass),
     settingsStringFromUi: exportedClass?.settingsStringFromUi?.bind(exportedClass),
     randomize: exportedClass?.randomize?.bind(exportedClass)
   })
@@ -560,41 +600,67 @@ const hashFile = async (file) => {
     .join('')
 }
 
-const readHeader = async (file) => new Uint8Array(await file.slice(0, 16).arrayBuffer())
+const normalizeSettingsSchema = (schema, { requiresLayeredFs = false } = {}) => {
+  const groups = Array.isArray(schema?.groups)
+    ? schema.groups.map((group) => ({
+        id: group.id,
+        name: group.name,
+        options: Array.isArray(group.options)
+          ? group.options.map((option) => ({
+              ...option,
+              choices: Array.isArray(option.choices)
+                ? option.choices.map(normalizeChoice)
+                : []
+            }))
+          : []
+      })).filter((group) => group.options.length)
+    : []
 
-const detectContainer = (extension, header) => {
-  if (header[0] === 0x50 && header[1] === 0x4b) return 'archive'
-  if (extension === 'nds') return 'nds'
-  if (extension === '3ds' || extension === 'cia' || extension === 'cxi' || extension === 'cci') return 'ctr'
+  return {
+    engine: {
+      ...UPRZX_PROJECT,
+      adapter: 'web-adapter-0.1.0'
+    },
+    defaults: {
+      seed: '',
+      ...(schema?.defaults || {})
+    },
+    groups,
+    validation: {
+      warnings: requiresLayeredFs
+        ? [
+            {
+              code: 'UPDATE_REQUIRES_LAYEREDFS',
+              message: '3DS game updates require LayeredFS output.'
+            }
+          ]
+        : []
+    }
+  }
+}
+
+const normalizeChoice = (choice) => {
+  if (Array.isArray(choice)) {
+    return {
+      value: String(choice[0] ?? ''),
+      label: String(choice[1] ?? choice[0] ?? ''),
+      disabled: !!choice[2]
+    }
+  }
+
+  return {
+    value: String(choice?.value ?? ''),
+    label: String(choice?.label ?? choice?.value ?? ''),
+    disabled: !!choice?.disabled
+  }
+}
+
+const containerForInspection = (inspection, extension) => {
+  if (inspection?.nintendo3ds) return 'ctr'
+  if (inspection?.nintendoDs) return 'nds'
   if (extension === 'gba') return 'gba'
   if (extension === 'gb' || extension === 'gbc') return 'gb'
   return 'unknown'
-}
-
-const generationForExtension = (extension) => {
-  if (extension === 'gb' || extension === 'gbc') return [1, 2]
-  if (extension === 'gba') return [3]
-  if (extension === 'nds') return [4, 5]
-  if (extension === '3ds' || extension === 'cia' || extension === 'cxi' || extension === 'cci') return [6, 7]
-  return []
-}
-
-const validationFor = (romInfo) => {
-  const warnings = []
-  if (romInfo?.requiresLayeredFs) {
-    warnings.push({
-      code: 'UPDATE_REQUIRES_LAYEREDFS',
-      message: '3DS game updates require LayeredFS output.'
-    })
-  }
-  return { warnings }
-}
-
-const isUnsupportedOption = (id, romInfo) => {
-  if (!romInfo) return false
-  const extension = romInfo.extension
-  if (id === 'totems' && !['3ds', 'cia', 'cxi', 'cci'].includes(extension)) return true
-  return false
 }
 
 const extensionFor = (name = '') => name.split('.').pop()?.toLowerCase() || ''

@@ -64,7 +64,9 @@ public final class BrowserRandomizerAdapter {
                 romHandler.getDefaultExtension(),
                 romHandler.generationOfPokemon(),
                 romHandler instanceof Abstract3DSRomHandler,
-                romHandler instanceof AbstractDSRomHandler
+                romHandler instanceof AbstractDSRomHandler,
+                romHandler.isRomValid(),
+                BrowserRandomizerSchema.forRom(romHandler, BUNDLE)
         );
     }
 
@@ -80,6 +82,9 @@ public final class BrowserRandomizerAdapter {
 
             if (!romHandler.loadRom(request.sourceRomPath)) {
                 return RandomizerResponse.error("Could not load ROM", logBytes);
+            }
+            if (!romHandler.isRomValid()) {
+                return RandomizerResponse.error("UPR-ZX recognized this ROM, but it does not appear to be a clean official ROM.", logBytes);
             }
 
             boolean saveAsDirectory = request.saveAsDirectory;
@@ -649,6 +654,8 @@ public final class BrowserRandomizerAdapter {
         public final int generation;
         public final boolean nintendo3ds;
         public final boolean nintendoDs;
+        public final boolean clean;
+        public final String settingsSchemaJson;
 
         private RomInspection(
                 boolean supported,
@@ -659,7 +666,9 @@ public final class BrowserRandomizerAdapter {
                 String defaultExtension,
                 int generation,
                 boolean nintendo3ds,
-                boolean nintendoDs
+                boolean nintendoDs,
+                boolean clean,
+                String settingsSchemaJson
         ) {
             this.supported = supported;
             this.sourceRomPath = sourceRomPath;
@@ -670,10 +679,12 @@ public final class BrowserRandomizerAdapter {
             this.generation = generation;
             this.nintendo3ds = nintendo3ds;
             this.nintendoDs = nintendoDs;
+            this.clean = clean;
+            this.settingsSchemaJson = settingsSchemaJson;
         }
 
         private static RomInspection unsupported(String sourceRomPath) {
-            return new RomInspection(false, sourceRomPath, null, null, null, null, 0, false, false);
+            return new RomInspection(false, sourceRomPath, null, null, null, null, 0, false, false, false, null);
         }
     }
 
