@@ -67,11 +67,13 @@ const inspectRom = async ({ rom, update }) => {
   )
 
   if (!inspection.ok || !inspection.supported) {
-    throw workerError('UPRZX_UNSUPPORTED_ROM', 'UPR-ZX could not identify this ROM.', {
+    const details = {
       inspection,
       localHeader,
       vfs: vfsDebug(vfs, sourceRomPath)
-    })
+    }
+    console.warn('[randomizer:inspect:unsupported]', details)
+    throw workerError('UPRZX_UNSUPPORTED_ROM', 'UPR-ZX could not identify this ROM.', details)
   }
 
   if (!inspection.clean) {

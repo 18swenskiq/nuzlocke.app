@@ -193,7 +193,13 @@
         seed: randomizerOptions.seed || randomizerSchema.defaults.seed || ''
       }
     } catch (error) {
-      console.warn('[randomizer:inspect]', error)
+      console.warn('[randomizer:inspect]', {
+        code: error?.code,
+        name: error?.name,
+        message: error?.message,
+        details: error?.details,
+        stack: error?.stack
+      })
       romError = formatRandomizerError(error) || 'Could not inspect ROM'
       romInfo = null
       romFile = null
