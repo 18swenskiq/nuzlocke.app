@@ -4,6 +4,7 @@ const jobs = new Map()
 const randomizerBaseUrl = '/randomizer/generated/'
 const randomizerWasmUrl = `${randomizerBaseUrl}uprzx.wasm`
 const randomizerRuntimeUrl = `${randomizerBaseUrl}uprzx.wasm-runtime.js`
+const appVersionUrl = '/_app/version.json'
 let runtimePromise = null
 
 self.onmessage = async ({ data }) => {
@@ -240,31 +241,54 @@ const getRuntime = async () => {
 }
 
 const loadRuntime = async () => {
-  await assertRuntimeAvailable()
+  const runtimeCacheKey = await getRuntimeCacheKey()
+  const runtimeUrl = absoluteRuntimeUrl(randomizerRuntimeUrl, runtimeCacheKey)
+  const wasmUrl = absoluteRuntimeUrl(randomizerWasmUrl, runtimeCacheKey)
+  await assertRuntimeAvailable(runtimeCacheKey)
   const runtimeModule = await runtimeStage('import runtime loader', () =>
-    import(/* @vite-ignore */ absoluteRuntimeUrl(randomizerRuntimeUrl))
+    import(/* @vite-ignore */ runtimeUrl),
+    { runtimeUrl, wasmUrl, runtimeCacheKey }
   )
   const load = runtimeModule.load || runtimeModule.default?.load || runtimeModule.default
   if (typeof load !== 'function') {
     throw workerError('UPRZX_RUNTIME_LOADER_UNAVAILABLE', 'The UPR-ZX TeaVM loader did not expose a load function.', {
-      runtimeUrl: absoluteRuntimeUrl(randomizerRuntimeUrl),
+      runtimeUrl,
+      wasmUrl,
+      runtimeCacheKey,
       exports: Object.keys(runtimeModule)
     })
   }
 
-  const teavm = await runtimeStage('instantiate WebAssembly module', () =>
-    load(absoluteRuntimeUrl(randomizerWasmUrl), {
+  let teavm
+  try {
+    teavm = await load(wasmUrl, {
       stackDeobfuscator: { enabled: false }
     })
-  )
+  } catch (error) {
+    throw workerError(
+      'UPRZX_RUNTIME_LOAD_FAILED',
+      `UPR-ZX runtime failed during instantiate WebAssembly module: ${error.message || String(error)}`,
+      {
+        stage: 'instantiate WebAssembly module',
+        cause: serializeNativeError(error),
+        runtimeUrl,
+        wasmUrl,
+        runtimeCacheKey,
+        loaderAsset: await inspectRuntimeAsset(randomizerRuntimeUrl, { cacheKey: runtimeCacheKey }),
+        wasmAsset: await inspectRuntimeAsset(randomizerWasmUrl, { cacheKey: runtimeCacheKey, validate: true })
+      }
+    )
+  }
   if (typeof teavm?.exports?.main !== 'function') {
     throw workerError('UPRZX_RUNTIME_MAIN_UNAVAILABLE', 'The UPR-ZX WebAssembly runtime did not expose main().', {
-      runtimeUrl: absoluteRuntimeUrl(randomizerRuntimeUrl),
+      runtimeUrl,
+      wasmUrl,
+      runtimeCacheKey,
       exports: exportNames(teavm?.exports || {})
     })
   }
 
-  await runtimeStage('initialize Java exports', () => teavm.exports.main([]))
+  await runtimeStage('initialize Java exports', () => teavm.exports.main([]), { runtimeUrl, wasmUrl, runtimeCacheKey })
   const bridge = createExportBridge(teavm.exports) || globalThis.__uprzxBridge
   if (
     !bridge?.inspectRom ||
@@ -274,6 +298,9 @@ const loadRuntime = async () => {
     !bridge?.defaultSettingsString
   ) {
     throw workerError('UPRZX_BRIDGE_UNAVAILABLE', 'The UPR-ZX WebAssembly runtime did not expose the browser bridge.', {
+      runtimeUrl,
+      wasmUrl,
+      runtimeCacheKey,
       exports: exportNames(teavm?.exports || {}),
       hasLegacyBridge: !!globalThis.__uprzxBridge
     })
@@ -282,7 +309,7 @@ const loadRuntime = async () => {
   return { teavm, bridge }
 }
 
-const runtimeStage = async (stage, task) => {
+const runtimeStage = async (stage, task, details = {}) => {
   try {
     return await task()
   } catch (error) {
@@ -290,8 +317,9 @@ const runtimeStage = async (stage, task) => {
     throw workerError('UPRZX_RUNTIME_LOAD_FAILED', `UPR-ZX runtime failed during ${stage}: ${error.message || String(error)}`, {
       stage,
       cause: serializeNativeError(error),
-      runtimeUrl: absoluteRuntimeUrl(randomizerRuntimeUrl),
-      wasmUrl: absoluteRuntimeUrl(randomizerWasmUrl)
+      runtimeUrl: details.runtimeUrl || absoluteRuntimeUrl(randomizerRuntimeUrl),
+      wasmUrl: details.wasmUrl || absoluteRuntimeUrl(randomizerWasmUrl),
+      runtimeCacheKey: details.runtimeCacheKey || null
     })
   }
 }
@@ -320,32 +348,92 @@ const validBridge = (bridge) => (Object.values(bridge).every((value) => typeof v
 
 const exportNames = (runtimeExports = {}) => Object.getOwnPropertyNames(runtimeExports)
 
-const assertRuntimeAvailable = async () => {
+const assertRuntimeAvailable = async (cacheKey) => {
   await Promise.all([
-    assertRuntimeFile(randomizerWasmUrl, 'UPRZX_WASM_UNAVAILABLE', 'The UPR-ZX WebAssembly runtime has not been built yet.'),
+    assertRuntimeFile(randomizerWasmUrl, 'UPRZX_WASM_UNAVAILABLE', 'The UPR-ZX WebAssembly runtime has not been built yet.', cacheKey),
     assertRuntimeFile(
       randomizerRuntimeUrl,
       'UPRZX_WASM_RUNTIME_UNAVAILABLE',
-      'The UPR-ZX WebAssembly runtime loader has not been built yet.'
+      'The UPR-ZX WebAssembly runtime loader has not been built yet.',
+      cacheKey
     )
   ])
 }
 
-const assertRuntimeFile = async (path, code, message) => {
-  const runtimeUrl = new URL(path, self.location.origin)
-  const response = await fetch(runtimeUrl, { method: 'HEAD' })
+const assertRuntimeFile = async (path, code, message, cacheKey) => {
+  const runtimeUrl = new URL(absoluteRuntimeUrl(path, cacheKey))
+  const response = await fetch(runtimeUrl, { method: 'HEAD', cache: 'no-store' })
   if (!response.ok) {
     throw workerError(
       code,
       message,
       {
-        runtimeUrl: runtimeUrl.toString()
+        runtimeUrl: runtimeUrl.toString(),
+        status: response.status,
+        statusText: response.statusText,
+        contentType: response.headers.get('content-type'),
+        contentLength: response.headers.get('content-length')
       }
     )
   }
 }
 
-const absoluteRuntimeUrl = (path) => new URL(path, self.location.origin).toString()
+const getRuntimeCacheKey = async () => {
+  try {
+    const response = await fetch(new URL(appVersionUrl, self.location.origin), { cache: 'no-store' })
+    if (response.ok) {
+      const version = await response.json()
+      if (version?.version) return `app-${version.version}`
+    }
+  } catch (error) {
+    // Fall back to a per-worker key below.
+  }
+  return `worker-${Date.now()}`
+}
+
+const absoluteRuntimeUrl = (path, cacheKey = '') => {
+  const url = new URL(path, self.location.origin)
+  if (cacheKey) url.searchParams.set('v', cacheKey)
+  return url.toString()
+}
+
+const inspectRuntimeAsset = async (path, { cacheKey = '', validate = false } = {}) => {
+  const url = absoluteRuntimeUrl(path, cacheKey)
+  try {
+    const response = await fetch(url, { cache: 'no-store' })
+    const details = {
+      url,
+      ok: response.ok,
+      status: response.status,
+      statusText: response.statusText,
+      redirected: response.redirected,
+      responseUrl: response.url,
+      type: response.type,
+      contentType: response.headers.get('content-type'),
+      contentLength: response.headers.get('content-length'),
+      cacheControl: response.headers.get('cache-control'),
+      etag: response.headers.get('etag'),
+      lastModified: response.headers.get('last-modified'),
+      acceptRanges: response.headers.get('accept-ranges'),
+      contentEncoding: response.headers.get('content-encoding')
+    }
+    if (validate && response.ok) {
+      const bytes = new Uint8Array(await response.arrayBuffer())
+      details.byteLength = bytes.byteLength
+      details.first8 = hexBytes(bytes.slice(0, 8))
+      details.hasWasmMagic = bytes[0] === 0 && bytes[1] === 0x61 && bytes[2] === 0x73 && bytes[3] === 0x6d
+      details.webAssemblyValidate = typeof WebAssembly !== 'undefined' && typeof WebAssembly.validate === 'function'
+        ? WebAssembly.validate(bytes)
+        : null
+    }
+    return details
+  } catch (error) {
+    return {
+      url,
+      error: serializeNativeError(error)
+    }
+  }
+}
 
 const createVirtualFileSystem = () => {
   const entries = new Map([['/', { type: 'directory' }]])
