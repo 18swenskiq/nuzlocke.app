@@ -175,7 +175,11 @@ const randomize = async ({
     const outputPath = saveAsDirectory
       ? vfsPath('/output', `${baseName(rom.name)}-layeredfs`)
       : vfsPath('/output', `${baseName(rom.name)}.randomized.${inspection.defaultExtension || extensionFor(rom.name) || 'rom'}`)
-    const resolvedSettings = resolveSettingsString(settings, runtime.bridge)
+    const settingsForEncoding =
+      settings && typeof settings === 'object' && typeof settings !== 'string'
+        ? { romName: inspection.name || inspection.romName || '', ...settings }
+        : settings
+    const resolvedSettings = resolveSettingsString(settingsForEncoding, runtime.bridge)
     const seedLong = seedToLong(seed || settings?.seed)
 
     const response = parseBridgeJson(
@@ -713,8 +717,9 @@ const resolveSettingsString = (settings, bridge) => {
       'encode settings'
     )
     if (!response.ok) {
-      throw workerError('UPRZX_SETTINGS_ENCODE_FAILED', response.error || 'Could not encode randomizer settings.', {
-        settings
+      throw workerError('UPRZX_SETTINGS_ENCODE_FAILED', response.error || response.exception || 'Could not encode randomizer settings.', {
+        settings,
+        response
       })
     }
     return { value: response.settingsString, source: 'ui-json' }

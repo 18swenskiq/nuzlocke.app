@@ -27,13 +27,16 @@ public final class BrowserRandomizerExports {
 
     @JSExport
     public static String defaultSettingsString() {
-        return new Settings().toString();
+        Settings settings = new Settings();
+        finalizeSettings(settings, "");
+        return settings.toString();
     }
 
     @JSExport
     public static String settingsStringFromUi(String settingsJson) {
         try {
             Settings settings = settingsFromUiJson(settingsJson);
+            finalizeSettings(settings, settingsJson);
             return "{"
                     + "\"ok\":true,"
                     + "\"settingsString\":" + quote(settings.toString())
@@ -407,6 +410,14 @@ public final class BrowserRandomizerExports {
         settings.setCurrentMiscTweaks(miscTweaks);
 
         return settings;
+    }
+
+    private static void finalizeSettings(Settings settings, String settingsJson) {
+        String romName = jsonValue(settingsJson, "romName", "");
+        settings.setRomName(romName == null ? "" : romName);
+        if (settings.getSelectedEXPCurve() == null) {
+            settings.setSelectedEXPCurve(ExpCurve.MEDIUM_FAST);
+        }
     }
 
     private static String jsonValue(String json, String key, String defaultValue) {
