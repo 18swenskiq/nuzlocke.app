@@ -29,6 +29,7 @@ import com.dabomstew.pkrandom.romhandlers.Gen7RomHandler;
 import com.dabomstew.pkrandom.romhandlers.RomHandler;
 
 import java.io.ByteArrayOutputStream;
+import java.io.InputStream;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -301,10 +302,20 @@ public final class BrowserRandomizerAdapter {
     }
 
     private static boolean configExists(String name) {
+        InputStream stream = null;
         try {
-            return FileFunctions.configExists(name);
+            stream = FileFunctions.openConfig(name);
+            return stream != null;
         } catch (Throwable ignored) {
             return false;
+        } finally {
+            if (stream != null) {
+                try {
+                    stream.close();
+                } catch (Exception ignored) {
+                    // Diagnostic helper only.
+                }
+            }
         }
     }
 

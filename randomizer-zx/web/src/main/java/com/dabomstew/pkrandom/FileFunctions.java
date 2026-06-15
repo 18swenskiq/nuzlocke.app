@@ -86,7 +86,16 @@ public class FileFunctions {
                 // Fall through to bundled resources.
             }
         }
-        return FileFunctions.class.getResource("/com/dabomstew/pkrandom/config/" + filename) != null;
+        InputStream stream = FileFunctions.class.getResourceAsStream("/com/dabomstew/pkrandom/config/" + filename);
+        if (stream == null) {
+            return false;
+        }
+        try {
+            stream.close();
+        } catch (IOException ignored) {
+            // The stream existing is enough for this check.
+        }
+        return true;
     }
 
     public static InputStream openConfig(String filename) throws FileNotFoundException {
