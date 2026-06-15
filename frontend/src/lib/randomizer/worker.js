@@ -873,6 +873,7 @@ const summarizeUnsupportedInspection = ({ inspection, localHeader, vfs }) => {
       message: javaFile.message ?? null
     },
     resources,
+    resourceManifest: globalThis.__uprzxResourceManifest || null,
     handlers
   }
 }
