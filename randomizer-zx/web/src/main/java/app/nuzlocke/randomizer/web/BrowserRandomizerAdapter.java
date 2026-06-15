@@ -50,9 +50,8 @@ public final class BrowserRandomizerAdapter {
     public static RomInspection inspectRom(String sourceRomPath) {
         List<String> handlerDiagnostics = new ArrayList<>();
         RomHandler romHandler = createLoadableHandler(sourceRomPath, handlerDiagnostics);
-        String diagnosticsJson = diagnosticsJson(sourceRomPath, handlerDiagnostics);
         if (romHandler == null) {
-            return RomInspection.unsupported(sourceRomPath, diagnosticsJson);
+            return RomInspection.unsupported(sourceRomPath, diagnosticsJson(sourceRomPath, handlerDiagnostics));
         }
 
         boolean loaded;
@@ -88,7 +87,7 @@ public final class BrowserRandomizerAdapter {
                 romHandler instanceof AbstractDSRomHandler,
                 romHandler.isRomValid(),
                 BrowserRandomizerSchema.forRom(romHandler, BUNDLE),
-                diagnosticsJson
+                null
         );
     }
 
@@ -272,6 +271,7 @@ public final class BrowserRandomizerAdapter {
                 + "\"first16\":" + quote(hex(header, 0, Math.min(16, header.length))) + ","
                 + "\"gbTitle\":" + quote(ascii(header, 0x134, 16)) + ","
                 + "\"gbCode\":" + quote(ascii(header, 0x13F, 4)) + ","
+                + "\"gbDestinationCode\":" + byteValue(header, 0x14A) + ","
                 + "\"gbVersion\":" + byteValue(header, 0x14C) + ","
                 + "\"gbHeaderChecksum\":" + quote(hex(header, 0x14D, 1)) + ","
                 + "\"gbGlobalChecksum\":" + quote(hex(header, 0x14E, 2)) + ","

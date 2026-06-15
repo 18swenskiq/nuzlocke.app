@@ -72,7 +72,10 @@ const inspectRom = async ({ rom, update }) => {
       localHeader,
       vfs: vfsDebug(vfs, sourceRomPath)
     }
+    const summary = summarizeUnsupportedInspection(details)
+    console.warn('[randomizer:inspect:unsupported:summary]', summary)
     console.warn('[randomizer:inspect:unsupported]', details)
+    console.warn('[randomizer:inspect:unsupported:json]', JSON.stringify(details, null, 2))
     throw workerError('UPRZX_UNSUPPORTED_ROM', 'UPR-ZX could not identify this ROM.', details)
   }
 
@@ -511,6 +514,11 @@ const createVirtualFileSystem = () => {
       const end = Math.min(entry.bytes.length, start + Math.max(0, Number(length) || 0))
       return entry.bytes.slice(start, end)
     },
+    readByte: (path, position) => {
+      const entry = fileEntry(path)
+      const index = Math.max(0, Number(position) || 0)
+      return index < entry.bytes.length ? entry.bytes[index] : -1
+    },
     write: (path, position, data) => {
       const normalized = normalize(path)
       ensureFile(normalized)
@@ -710,6 +718,7 @@ const readRomDebugHeader = async (file) => {
     extension: extensionFor(file.name),
     gbTitle: ascii(bytes, 0x134, 16),
     gbCode: ascii(bytes, 0x13f, 4),
+    gbDestinationCode: byteAt(bytes, 0x14a),
     gbVersion: byteAt(bytes, 0x14c),
     gbHeaderChecksum: hexByte(byteAt(bytes, 0x14d)),
     gbGlobalChecksum: `${hexByte(byteAt(bytes, 0x14e))}${hexByte(byteAt(bytes, 0x14f))}`,
@@ -744,6 +753,66 @@ const vfsDebug = (vfs, path) => ({
   length: vfs.length(path),
   first16: hexBytes(vfs.read(path, 0, 16))
 })
+
+const summarizeUnsupportedInspection = ({ inspection, localHeader, vfs }) => {
+  const diagnostics = inspection?.diagnostics || {}
+  const javaFile = diagnostics.file || {}
+  const resources = diagnostics.resources || {}
+  const handlers = Array.isArray(diagnostics.handlers)
+    ? diagnostics.handlers.map((handler) => ({
+        handler: handler.handler,
+        stage: handler.stage,
+        loadable: handler.loadable ?? null,
+        exception: handler.exception ?? null,
+        message: handler.message ?? null
+      }))
+    : []
+
+  return {
+    local: {
+      size: localHeader?.size,
+      gbTitle: localHeader?.gbTitle,
+      gbDestinationCode: localHeader?.gbDestinationCode,
+      gbVersion: localHeader?.gbVersion,
+      gbHeaderChecksum: localHeader?.gbHeaderChecksum,
+      gbGlobalChecksum: localHeader?.gbGlobalChecksum,
+      gbaTitle: localHeader?.gbaTitle,
+      gbaCode: localHeader?.gbaCode,
+      gbaVersion: localHeader?.gbaVersion,
+      first16: localHeader?.first16
+    },
+    javascriptVfs: {
+      path: vfs?.path,
+      exists: vfs?.exists,
+      isFile: vfs?.isFile,
+      length: vfs?.length,
+      first16: vfs?.first16
+    },
+    javaVfs: {
+      path: javaFile.path,
+      exists: javaFile.exists,
+      isFile: javaFile.isFile,
+      canRead: javaFile.canRead,
+      length: javaFile.length,
+      read336Length: javaFile.read336Length,
+      read4096Length: javaFile.read4096Length,
+      read1MiBLength: javaFile.read1MiBLength,
+      gbTitle: javaFile.gbTitle,
+      gbDestinationCode: javaFile.gbDestinationCode,
+      gbVersion: javaFile.gbVersion,
+      gbHeaderChecksum: javaFile.gbHeaderChecksum,
+      gbGlobalChecksum: javaFile.gbGlobalChecksum,
+      gbaTitle: javaFile.gbaTitle,
+      gbaCode: javaFile.gbaCode,
+      gbaVersion: javaFile.gbaVersion,
+      first16: javaFile.first16,
+      exception: javaFile.exception ?? null,
+      message: javaFile.message ?? null
+    },
+    resources,
+    handlers
+  }
+}
 
 const normalizeSettingsSchema = (schema, { requiresLayeredFs = false } = {}) => {
   const groups = Array.isArray(schema?.groups)

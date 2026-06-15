@@ -45,7 +45,7 @@ public final class BrowserVfsFileSystem implements VfsFileSystem {
         if (!exists(path) || !isFile(path)) {
             throw new FileNotFoundException(path);
         }
-        return read0(path, 0, (int) length(path));
+        return read(path, 0, (int) length(path));
     }
 
     @Override
@@ -121,7 +121,16 @@ public final class BrowserVfsFileSystem implements VfsFileSystem {
     }
 
     static byte[] read(String path, long position, int length) {
-        return read0(path, position, length);
+        int bytesToRead = readAvailable0(path, position, length);
+        if (bytesToRead <= 0) {
+            return new byte[0];
+        }
+
+        byte[] bytes = new byte[bytesToRead];
+        for (int i = 0; i < bytesToRead; i++) {
+            bytes[i] = (byte) readByte0(path, position + i);
+        }
+        return bytes;
     }
 
     static void write(String path, long position, byte[] data) {
@@ -144,8 +153,11 @@ public final class BrowserVfsFileSystem implements VfsFileSystem {
     @JSBody(params = "path", script = "return BigInt(globalThis.__uprzxVfs.length(path));")
     private static native long length0(String path);
 
-    @JSBody(params = { "path", "position", "length" }, script = "return globalThis.__uprzxVfs.read(path, Number(position), length);")
-    private static native byte[] read0(String path, long position, int length);
+    @JSBody(params = { "path", "position", "length" }, script = "return globalThis.__uprzxVfs.read(path, Number(position), length).length;")
+    private static native int readAvailable0(String path, long position, int length);
+
+    @JSBody(params = { "path", "position" }, script = "return globalThis.__uprzxVfs.readByte(path, Number(position));")
+    private static native int readByte0(String path, long position);
 
     @JSBody(params = { "path", "position", "data" }, script = "globalThis.__uprzxVfs.write(path, Number(position), data);")
     private static native void write0(String path, long position, byte[] data);
