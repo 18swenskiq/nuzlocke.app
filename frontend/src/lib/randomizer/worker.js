@@ -4,8 +4,10 @@ const jobs = new Map()
 const randomizerBaseUrl = '/randomizer/generated/'
 const randomizerWasmUrl = `${randomizerBaseUrl}uprzx.wasm`
 const randomizerRuntimeUrl = `${randomizerBaseUrl}uprzx.wasm-runtime.js`
+const randomizerResourceManifestUrl = '/randomizer/resources/uprzx-resources.json'
 const appVersionUrl = '/_app/version.json'
 let runtimePromise = null
+let resourcesPromise = null
 
 self.onmessage = async ({ data }) => {
   const { id, type, payload } = data
@@ -250,6 +252,7 @@ const loadRuntime = async () => {
   const runtimeUrl = absoluteRuntimeUrl(randomizerRuntimeUrl, runtimeCacheKey)
   const wasmUrl = absoluteRuntimeUrl(randomizerWasmUrl, runtimeCacheKey)
   await assertRuntimeAvailable(runtimeCacheKey)
+  await ensureRandomizerResources(runtimeCacheKey)
   const runtimeModule = await runtimeStage('import runtime loader', () =>
     import(/* @vite-ignore */ runtimeUrl),
     { runtimeUrl, wasmUrl, runtimeCacheKey }
@@ -353,6 +356,57 @@ const validBridge = (bridge) => (Object.values(bridge).every((value) => typeof v
 
 const exportNames = (runtimeExports = {}) => Object.getOwnPropertyNames(runtimeExports)
 
+const ensureRandomizerResources = async (cacheKey) => {
+  resourcesPromise ||= loadRandomizerResources(cacheKey).catch((error) => {
+    resourcesPromise = null
+    throw error
+  })
+  return resourcesPromise
+}
+
+const loadRandomizerResources = async (cacheKey) => {
+  const url = absoluteRuntimeUrl(randomizerResourceManifestUrl, cacheKey)
+  const response = await fetch(url, { cache: 'no-store' })
+  if (!response.ok) {
+    throw workerError('UPRZX_RESOURCES_UNAVAILABLE', 'The UPR-ZX browser resources have not been built yet.', {
+      url,
+      status: response.status,
+      statusText: response.statusText,
+      contentType: response.headers.get('content-type'),
+      contentLength: response.headers.get('content-length')
+    })
+  }
+
+  let manifest
+  try {
+    manifest = await response.json()
+  } catch (error) {
+    throw workerError('UPRZX_RESOURCES_INVALID', 'The UPR-ZX browser resource manifest is not valid JSON.', {
+      url,
+      cause: serializeNativeError(error)
+    })
+  }
+
+  if (!manifest?.resources || typeof manifest.resources !== 'object') {
+    throw workerError('UPRZX_RESOURCES_INVALID', 'The UPR-ZX browser resource manifest is missing its resources map.', {
+      url,
+      version: manifest?.version || null
+    })
+  }
+
+  const resources = new Map()
+  for (const [path, encoded] of Object.entries(manifest.resources)) {
+    resources.set(path, base64ToBytes(encoded))
+  }
+  globalThis.__uprzxResources = resources
+  globalThis.__uprzxResourceManifest = {
+    url,
+    version: manifest.version || null,
+    count: resources.size
+  }
+  return globalThis.__uprzxResourceManifest
+}
+
 const assertRuntimeAvailable = async (cacheKey) => {
   await Promise.all([
     assertRuntimeFile(randomizerWasmUrl, 'UPRZX_WASM_UNAVAILABLE', 'The UPR-ZX WebAssembly runtime has not been built yet.', cacheKey),
@@ -400,6 +454,15 @@ const absoluteRuntimeUrl = (path, cacheKey = '') => {
   const url = new URL(path, self.location.origin)
   if (cacheKey) url.searchParams.set('v', cacheKey)
   return url.toString()
+}
+
+const base64ToBytes = (encoded) => {
+  const binary = atob(String(encoded || ''))
+  const bytes = new Uint8Array(binary.length)
+  for (let index = 0; index < binary.length; index++) {
+    bytes[index] = binary.charCodeAt(index)
+  }
+  return bytes
 }
 
 const inspectRuntimeAsset = async (path, { cacheKey = '', validate = false } = {}) => {

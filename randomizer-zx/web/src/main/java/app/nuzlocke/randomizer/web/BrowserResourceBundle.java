@@ -20,7 +20,10 @@ public final class BrowserResourceBundle extends ResourceBundle {
 
     public static BrowserResourceBundle load() {
         Map<String, String> values = new LinkedHashMap<>();
-        InputStream stream = BrowserResourceBundle.class.getResourceAsStream(BUNDLE_PATH);
+        InputStream stream = BrowserResources.open("newgui/Bundle.properties");
+        if (stream == null) {
+            stream = BrowserResourceBundle.class.getResourceAsStream(BUNDLE_PATH);
+        }
         if (stream == null) {
             return new BrowserResourceBundle(values);
         }

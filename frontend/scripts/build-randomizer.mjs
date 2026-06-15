@@ -1,5 +1,5 @@
-import { existsSync } from 'node:fs'
-import { dirname, resolve } from 'node:path'
+import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
+import { dirname, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { spawn, spawnSync } from 'node:child_process'
 
@@ -12,9 +12,11 @@ const wrapper = resolve(
 )
 const wasmRuntime = resolve(root, 'frontend', 'static', 'randomizer', 'generated', 'uprzx.wasm')
 const jsRuntime = resolve(root, 'frontend', 'static', 'randomizer', 'generated', 'uprzx.wasm-runtime.js')
+const resourceManifest = resolve(root, 'frontend', 'static', 'randomizer', 'resources', 'uprzx-resources.json')
 
 if (process.env.SKIP_RANDOMIZER_BUILD === '1') {
   console.warn('Skipping UPR-ZX WebAssembly build because SKIP_RANDOMIZER_BUILD=1.')
+  writeResourceManifest()
   process.exit(0)
 }
 
@@ -72,6 +74,8 @@ child.on('exit', (code, signal) => {
     console.error(`UPR-ZX WebAssembly build completed, but ${jsRuntime} was not created.`)
     process.exit(1)
   }
+
+  writeResourceManifest()
 })
 
 function parseJavaMajor(output) {
@@ -81,4 +85,49 @@ function parseJavaMajor(output) {
   const [first, second] = match.groups.version.split('.')
   if (first === '1') return Number(second)
   return Number(first)
+}
+
+function writeResourceManifest() {
+  const sourceRoot = resolve(randomizerDir, 'upstream', 'src', 'com', 'dabomstew', 'pkrandom')
+  const resources = {}
+
+  addResourceTree(resolve(sourceRoot, 'config'), 'config', resources)
+  addResourceTree(resolve(sourceRoot, 'patches'), 'patches', resources)
+  addResourceFile(resolve(sourceRoot, 'newgui', 'Bundle.properties'), 'newgui/Bundle.properties', resources)
+
+  mkdirSync(dirname(resourceManifest), { recursive: true })
+  writeFileSync(
+    resourceManifest,
+    JSON.stringify(
+      {
+        version: 1,
+        resources
+      },
+      null,
+      2
+    )
+  )
+  console.log(`UPR-ZX browser resource manifest wrote ${Object.keys(resources).length} resources.`)
+}
+
+function addResourceTree(sourceDir, targetPrefix, resources, rootDir = sourceDir) {
+  for (const entry of readdirSync(sourceDir, { withFileTypes: true })) {
+    const fullPath = resolve(sourceDir, entry.name)
+    if (entry.isDirectory()) {
+      addResourceTree(fullPath, targetPrefix, resources, rootDir)
+      continue
+    }
+    if (!entry.isFile()) continue
+
+    const targetPath = `${targetPrefix}/${relative(rootDir, fullPath).replace(/\\/g, '/')}`
+    addResourceFile(fullPath, targetPath, resources)
+  }
+}
+
+function addResourceFile(sourcePath, targetPath, resources) {
+  if (!existsSync(sourcePath) || !statSync(sourcePath).isFile()) {
+    console.error(`UPR-ZX resource is missing at ${sourcePath}.`)
+    process.exit(1)
+  }
+  resources[targetPath] = readFileSync(sourcePath).toString('base64')
 }

@@ -1,5 +1,7 @@
 package com.dabomstew.pkrandom;
 
+import app.nuzlocke.randomizer.web.BrowserResources;
+
 /*----------------------------------------------------------------------------*/
 /*--  FileFunctions.java - functions relating to file I/O.                  --*/
 /*--                                                                        --*/
@@ -86,7 +88,10 @@ public class FileFunctions {
                 // Fall through to bundled resources.
             }
         }
-        InputStream stream = FileFunctions.class.getResourceAsStream("/com/dabomstew/pkrandom/config/" + filename);
+        InputStream stream = BrowserResources.open("config/" + filename);
+        if (stream == null) {
+            stream = FileFunctions.class.getResourceAsStream("/com/dabomstew/pkrandom/config/" + filename);
+        }
         if (stream == null) {
             return false;
         }
@@ -114,7 +119,14 @@ public class FileFunctions {
                 // Fall through to bundled resources.
             }
         }
-        return FileFunctions.class.getResourceAsStream("/com/dabomstew/pkrandom/config/" + filename);
+        InputStream stream = BrowserResources.open("config/" + filename);
+        if (stream == null) {
+            stream = FileFunctions.class.getResourceAsStream("/com/dabomstew/pkrandom/config/" + filename);
+        }
+        if (stream == null) {
+            throw new FileNotFoundException(filename);
+        }
+        return stream;
     }
 
     public static CustomNamesSet getCustomNames() throws IOException {
@@ -232,9 +244,11 @@ public class FileFunctions {
 
     public static byte[] getConfigAsBytes(String filename) throws IOException {
         InputStream in = openConfig(filename);
-        byte[] buf = readFullyIntoBuffer(in, in.available());
-        in.close();
-        return buf;
+        try {
+            return readAllBytes(in);
+        } finally {
+            in.close();
+        }
     }
 
     public static int getFileChecksum(String filename) {
@@ -313,10 +327,18 @@ public class FileFunctions {
     }
 
     private static byte[] getCodeTweakFile(String filename) throws IOException {
-        InputStream is = FileFunctions.class.getResourceAsStream("/com/dabomstew/pkrandom/patches/" + filename);
-        byte[] buf = readFullyIntoBuffer(is, is.available());
-        is.close();
-        return buf;
+        InputStream is = BrowserResources.open("patches/" + filename);
+        if (is == null) {
+            is = FileFunctions.class.getResourceAsStream("/com/dabomstew/pkrandom/patches/" + filename);
+        }
+        if (is == null) {
+            throw new FileNotFoundException(filename);
+        }
+        try {
+            return readAllBytes(is);
+        } finally {
+            is.close();
+        }
     }
 
     public static byte[] downloadFile(String url) throws IOException {

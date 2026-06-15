@@ -25,3 +25,4 @@ frontend/download-assets.mjs
 /randomizer-zx/build
 /randomizer-zx/web/build
 /frontend/static/randomizer/generated
+/frontend/static/randomizer/resources
