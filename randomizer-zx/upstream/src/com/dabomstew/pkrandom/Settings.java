@@ -2350,12 +2350,87 @@ public class Settings {
     @SuppressWarnings("unchecked")
     private static <E extends Enum<E>> E getEnum(Class<E> clazz, boolean... bools) {
         int index = getSetEnum(clazz.getSimpleName(), bools);
+        E[] values = enumValues(clazz);
+        if (index >= 0 && index < values.length) {
+            return values[index];
+        }
         try {
-            return ((E[]) clazz.getMethod("values").invoke(null))[index];
+            return values[0];
         } catch (Exception e) {
             throw new IllegalArgumentException(String.format("Unable to parse enum of type %s", clazz.getSimpleName()),
                     e);
         }
+    }
+
+    @SuppressWarnings("unchecked")
+    private static <E extends Enum<E>> E[] enumValues(Class<E> clazz) {
+        if (clazz == BaseStatisticsMod.class) {
+            return (E[]) BaseStatisticsMod.values();
+        }
+        if (clazz == ExpCurveMod.class) {
+            return (E[]) ExpCurveMod.values();
+        }
+        if (clazz == AbilitiesMod.class) {
+            return (E[]) AbilitiesMod.values();
+        }
+        if (clazz == StartersMod.class) {
+            return (E[]) StartersMod.values();
+        }
+        if (clazz == TypesMod.class) {
+            return (E[]) TypesMod.values();
+        }
+        if (clazz == EvolutionsMod.class) {
+            return (E[]) EvolutionsMod.values();
+        }
+        if (clazz == MovesetsMod.class) {
+            return (E[]) MovesetsMod.values();
+        }
+        if (clazz == TrainersMod.class) {
+            return (E[]) TrainersMod.values();
+        }
+        if (clazz == WildPokemonMod.class) {
+            return (E[]) WildPokemonMod.values();
+        }
+        if (clazz == WildPokemonRestrictionMod.class) {
+            return (E[]) WildPokemonRestrictionMod.values();
+        }
+        if (clazz == StaticPokemonMod.class) {
+            return (E[]) StaticPokemonMod.values();
+        }
+        if (clazz == TotemPokemonMod.class) {
+            return (E[]) TotemPokemonMod.values();
+        }
+        if (clazz == AllyPokemonMod.class) {
+            return (E[]) AllyPokemonMod.values();
+        }
+        if (clazz == AuraMod.class) {
+            return (E[]) AuraMod.values();
+        }
+        if (clazz == TMsMod.class) {
+            return (E[]) TMsMod.values();
+        }
+        if (clazz == TMsHMsCompatibilityMod.class) {
+            return (E[]) TMsHMsCompatibilityMod.values();
+        }
+        if (clazz == MoveTutorMovesMod.class) {
+            return (E[]) MoveTutorMovesMod.values();
+        }
+        if (clazz == MoveTutorsCompatibilityMod.class) {
+            return (E[]) MoveTutorsCompatibilityMod.values();
+        }
+        if (clazz == InGameTradesMod.class) {
+            return (E[]) InGameTradesMod.values();
+        }
+        if (clazz == FieldItemsMod.class) {
+            return (E[]) FieldItemsMod.values();
+        }
+        if (clazz == ShopItemsMod.class) {
+            return (E[]) ShopItemsMod.values();
+        }
+        if (clazz == PickupItemsMod.class) {
+            return (E[]) PickupItemsMod.values();
+        }
+        throw new IllegalArgumentException(String.format("Unable to parse enum of type %s", clazz.getSimpleName()));
     }
 
     private static int getSetEnum(String type, boolean... bools) {
