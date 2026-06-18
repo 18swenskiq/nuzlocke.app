@@ -14,6 +14,7 @@
 
   import deferStyles from '$lib/utils/defer-styles'
   import debounce from '$lib/utils/debounce'
+  import { normalizeRandomizerResults } from '$lib/randomizer/locations'
 
   import { Expanded as Games } from '$lib/data/games.js'
   import {
@@ -73,9 +74,15 @@
 
   const readRandomizedRoute = (data) => {
     const randomizer = data?.__randomizer
-    const results = randomizer?.results || randomizer?.extractedData
+    const results = normalizeRandomizerResults(
+      randomizer?.results || randomizer?.extractedData,
+      gameKey
+    )
+    const topLevelRoute = randomizer?.route
+      ? normalizeRandomizerResults({ route: randomizer.route }, gameKey)?.route
+      : null
     return (
-      randomizer?.route ||
+      topLevelRoute ||
       results?.route ||
       results?.routes ||
       results?.tracker?.route ||
