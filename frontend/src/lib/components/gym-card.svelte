@@ -30,8 +30,12 @@
   import TypeBadge from '$lib/components/type-badge.svelte'
   import Label from '$lib/components/label.svelte'
 
-  import { createImgUrl } from '$utils/rewrites'
   import { toList } from '$utils/string'
+  import {
+    POKEAPI_UNOWN_SPRITE,
+    pokemonSpriteKey,
+    resolvePokeApiSprite
+  } from '$lib/pokeapi/sprites'
 
   import { Picture, Icon, PIcon, IconButton, Accordion, Tooltip } from '$c/core'
   import { Wrapper as SettingWrapper } from '$lib/components/Settings'
@@ -59,6 +63,9 @@
     loadmodal().then((modal) => open(modal, { boss, mode: 'build' }))
 
   export let loading = true
+  let spriteByPokemon = {},
+    lastSpriteLoadKey = '',
+    spriteRequest = 0
 
   const fetchData = async (starter) => {
     if (!browser) return
@@ -82,6 +89,28 @@
   }
 
   $: (async () => await fetchData(starter))()
+  $: spriteLoadKey =
+    browser && pokemon?.length
+      ? `${typeof game === 'object' ? game?.pid || game?.id || '' : game}|${pokemon
+          .map((p, i) => pokemonSpriteKey(p, i))
+          .join('|')}`
+      : ''
+  $: if (spriteLoadKey && spriteLoadKey !== lastSpriteLoadKey) {
+    lastSpriteLoadKey = spriteLoadKey
+    loadSprites(pokemon, game)
+  }
+
+  const loadSprites = async (team, gameKey) => {
+    const request = ++spriteRequest
+    const entries = await Promise.all(
+      team.map(async (p, i) => [
+        pokemonSpriteKey(p, i),
+        await resolvePokeApiSprite(p, gameKey)
+      ])
+    )
+    if (request !== spriteRequest) return
+    spriteByPokemon = Object.fromEntries(entries)
+  }
 
   $: levelCap = pokemon.every(
     (it) => it.level.startsWith('+') || it.level.startsWith('-')
@@ -252,10 +281,12 @@
       class="mt-8 grid gap-y-10 md:grid-cols-2 md:gap-x-2 lg:grid-cols-2 lg:gap-x-6"
     >
       {#each pokemon as p, id (p.name + id)}
+        {@const spriteKey = pokemonSpriteKey(p, id)}
         <Pokemon
           {...p}
           class="snap-start scroll-mt-6"
-          sprite={createImgUrl(p, { ext: 'png' })}
+          sprite={spriteByPokemon[spriteKey] || POKEAPI_UNOWN_SPRITE}
+          fallback={POKEAPI_UNOWN_SPRITE}
           {maxStat}
         >
           <button
