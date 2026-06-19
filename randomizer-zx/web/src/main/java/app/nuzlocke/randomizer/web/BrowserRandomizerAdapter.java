@@ -34,8 +34,10 @@ import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.ResourceBundle;
 import java.util.Set;
 
@@ -137,9 +139,11 @@ public final class BrowserRandomizerAdapter {
                 }
             }
 
+            Map<Integer, String> originalTrainerSnapshots = trainerSnapshotMap(romHandler);
+
             Randomizer randomizer = new Randomizer(settings, romHandler, BUNDLE, saveAsDirectory);
             int checkValue = randomizer.randomize(outputPath, log, request.seed);
-            String extractedDataJson = extractTrackerData(romHandler, settings);
+            String extractedDataJson = extractTrackerData(romHandler, settings, originalTrainerSnapshots);
 
             return RandomizerResponse.ok(
                     checkValue,
@@ -397,25 +401,33 @@ public final class BrowserRandomizerAdapter {
         return out.toString();
     }
 
-    private static String extractTrackerData(RomHandler romHandler, Settings settings) {
+    private static String extractTrackerData(
+            RomHandler romHandler,
+            Settings settings,
+            Map<Integer, String> originalTrainerSnapshots
+    ) {
         List<String> routeEntries = new ArrayList<>();
         List<String> leagueEntries = new ArrayList<>();
+        List<String> importantTrainerEntries = new ArrayList<>();
         List<String> warnings = new ArrayList<>();
 
         addStarterRoute(routeEntries, warnings, romHandler);
         addWildRoutes(routeEntries, warnings, romHandler, settings);
         addStaticRoute(routeEntries, warnings, romHandler);
-        addImportantTrainers(routeEntries, leagueEntries, warnings, romHandler);
+        addImportantTrainers(routeEntries, leagueEntries, importantTrainerEntries, warnings, romHandler, originalTrainerSnapshots);
 
         String routeJson = "[" + join(routeEntries) + "]";
         String leagueJson = "{" + join(leagueEntries) + "}";
+        String importantTrainerJson = "[" + join(importantTrainerEntries) + "]";
         return "{"
                 + "\"route\":" + routeJson + ","
                 + "\"routes\":" + routeJson + ","
                 + "\"league\":" + leagueJson + ","
                 + "\"trainers\":{"
                 + "\"league\":" + leagueJson + ","
-                + "\"importantCount\":" + leagueEntries.size()
+                + "\"important\":" + importantTrainerJson + ","
+                + "\"pairs\":" + importantTrainerJson + ","
+                + "\"importantCount\":" + importantTrainerEntries.size()
                 + "},"
                 + "\"warnings\":[" + join(warnings) + "]"
                 + "}";
@@ -498,8 +510,10 @@ public final class BrowserRandomizerAdapter {
     private static void addImportantTrainers(
             List<String> routeEntries,
             List<String> leagueEntries,
+            List<String> importantTrainerEntries,
             List<String> warnings,
-            RomHandler romHandler
+            RomHandler romHandler,
+            Map<Integer, String> originalTrainerSnapshots
     ) {
         try {
             List<Trainer> trainers = romHandler.getTrainers();
@@ -513,6 +527,7 @@ public final class BrowserRandomizerAdapter {
                 String label = trainerLabel(trainer);
                 routeEntries.add(gymRouteEntry(id, group, label));
                 leagueEntries.add(quote(id) + ":" + trainerJson(id, trainer, romHandler));
+                importantTrainerEntries.add(trainerPairJson(id, trainer, romHandler, originalTrainerSnapshots));
             }
         } catch (Exception e) {
             warnings.add(warningJson("TRAINERS_EXTRACT_FAILED", e));
@@ -528,12 +543,55 @@ public final class BrowserRandomizerAdapter {
     private static String trainerJson(String id, Trainer trainer, RomHandler romHandler) {
         return "{"
                 + "\"id\":" + quote(id) + ","
+                + "\"index\":" + trainer.index + ","
+                + "\"offset\":" + trainer.offset + ","
+                + "\"trainerClass\":" + trainer.trainerclass + ","
                 + "\"name\":" + quote(trainerLabel(trainer)) + ","
+                + "\"displayName\":" + quote(trainer.fullDisplayName) + ","
                 + "\"tag\":" + quote(trainer.tag) + ","
                 + "\"group\":" + quote(trainerGroup(trainer)) + ","
+                + "\"important\":" + isTrackerTrainer(trainer) + ","
+                + "\"boss\":" + trainer.isBoss() + ","
                 + "\"speciality\":\"\","
                 + "\"img\":null,"
                 + "\"pokemon\":[" + join(trainerPokemonJson(trainer, romHandler)) + "]"
+                + "}";
+    }
+
+    private static Map<Integer, String> trainerSnapshotMap(RomHandler romHandler) {
+        Map<Integer, String> snapshots = new LinkedHashMap<>();
+        try {
+            List<Trainer> trainers = romHandler.getTrainers();
+            for (Trainer trainer : trainers) {
+                if (trainer == null) {
+                    continue;
+                }
+                String id = "trainer-" + trainer.index;
+                snapshots.put(trainer.index, trainerJson(id, trainer, romHandler));
+            }
+        } catch (Exception ignored) {
+            // Trainer snapshots are used as matching hints only.
+        }
+        return snapshots;
+    }
+
+    private static String trainerPairJson(
+            String id,
+            Trainer trainer,
+            RomHandler romHandler,
+            Map<Integer, String> originalTrainerSnapshots
+    ) {
+        String original = originalTrainerSnapshots == null ? null : originalTrainerSnapshots.get(trainer.index);
+        return "{"
+                + "\"id\":" + quote(id) + ","
+                + "\"index\":" + trainer.index + ","
+                + "\"tag\":" + quote(trainer.tag) + ","
+                + "\"name\":" + quote(trainerLabel(trainer)) + ","
+                + "\"group\":" + quote(trainerGroup(trainer)) + ","
+                + "\"important\":" + isTrackerTrainer(trainer) + ","
+                + "\"boss\":" + trainer.isBoss() + ","
+                + "\"original\":" + (original == null ? "null" : original) + ","
+                + "\"randomized\":" + trainerJson(id, trainer, romHandler)
                 + "}";
     }
 
@@ -548,6 +606,8 @@ public final class BrowserRandomizerAdapter {
             }
             pokemon.add("{"
                     + "\"name\":" + quote(pokemonSlug(trainerPokemon.pokemon, trainerPokemon.formeSuffix)) + ","
+                    + "\"number\":" + trainerPokemon.pokemon.number + ","
+                    + "\"sprite\":" + quote(String.valueOf(trainerPokemon.pokemon.number)) + ","
                     + "\"level\":" + quote(String.valueOf(trainerPokemon.level)) + ","
                     + "\"types\":" + typeArrayJson(trainerPokemon.pokemon) + ","
                     + "\"moves\":" + movesJson(trainerPokemon, romHandler) + ","

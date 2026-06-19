@@ -47,7 +47,7 @@ const TIME_SUFFIXES = [
   'Saturdays'
 ]
 
-export const normalizeRandomizerResults = (results, gameKey) => {
+export const normalizeRandomizerResults = (results, canonicalRoutes) => {
   if (!results || typeof results !== 'object') return results
 
   const routes = Array.isArray(results.route)
@@ -58,7 +58,7 @@ export const normalizeRandomizerResults = (results, gameKey) => {
 
   if (!routes) return results
 
-  const route = normalizeRandomizerRoutes(routes, gameKey)
+  const route = normalizeRandomizerRoutes(routes, canonicalRoutes)
   return {
     ...results,
     route,
@@ -76,6 +76,71 @@ export const normalizeRandomizerResults = (results, gameKey) => {
         }
       : results.trackerData
   }
+}
+
+export const mergeRandomizerRouteData = (baseRoutes = [], results, canonicalRoutes = baseRoutes) => {
+  if (!Array.isArray(baseRoutes)) return baseRoutes
+
+  const normalizedResults = normalizeRandomizerResults(results, canonicalRoutes)
+  const randomizerRoutes = Array.isArray(normalizedResults?.route)
+    ? normalizedResults.route
+    : Array.isArray(normalizedResults?.routes)
+      ? normalizedResults.routes
+      : null
+
+  if (!randomizerRoutes) return baseRoutes
+
+  const randomizerByName = new Map()
+  const extraRoutes = []
+  const used = new Set()
+
+  for (const route of randomizerRoutes) {
+    if (!route || route.type !== 'route' || !Array.isArray(route.encounters)) {
+      continue
+    }
+
+    const key = routeKey(route.name)
+    if (!key) continue
+
+    const existing = randomizerByName.get(key)
+    if (existing) {
+      existing.encounters = unique([...(existing.encounters || []), ...route.encounters])
+      existing.randomizerOriginalNames = unique([
+        ...(existing.randomizerOriginalNames || []),
+        ...(route.randomizerOriginalNames || [route.name])
+      ])
+      existing.randomizerTables = [
+        ...(existing.randomizerTables || []),
+        ...(route.randomizerTables || [])
+      ]
+    } else {
+      randomizerByName.set(key, route)
+    }
+  }
+
+  const merged = baseRoutes.map((route) => {
+    if (!route || route.type !== 'route') return route
+
+    const match = randomizerByName.get(routeKey(route.name))
+    if (!match) return route
+
+    used.add(routeKey(match.name))
+    return {
+      ...route,
+      encounters: match.encounters || [],
+      randomizerNormalized: true,
+      randomizerOriginalNames: match.randomizerOriginalNames || [match.name],
+      randomizerTables: match.randomizerTables || []
+    }
+  })
+
+  for (const [key, route] of randomizerByName.entries()) {
+    if (!used.has(key)) {
+      extraRoutes.push(route)
+    }
+  }
+
+  return [...merged, ...extraRoutes]
 }
 
 export const normalizeRandomizerRoutes = (routes = [], gameKey) => {

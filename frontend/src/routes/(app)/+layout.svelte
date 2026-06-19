@@ -10,6 +10,7 @@
 
   import { fetchData, fetchLeague } from '$utils/fetchers'
   import { normalise } from '$utils/string'
+  import { mergeRandomizedLeague, selectRandomizedLeague } from '$lib/randomizer/trainers'
 
   import Modal from 'svelte-simple-modal'
   import deferStyles from '$lib/utils/defer-styles'
@@ -27,40 +28,26 @@
     if (browser) setTimeout(() => document.body.classList.add('lazy-pkm'), 0)
   })
 
-  const readRandomizedLeague = (game, starter) => {
+  const readRandomizerResults = () => {
     if (!browser) return null
 
     const [gameData] = readdata()
-    const results =
-      gameData?.__randomizer?.results || gameData?.__randomizer?.extractedData
-    const league =
-      results?.league ||
-      results?.bosses ||
-      results?.trainers?.league ||
-      results?.tracker?.league ||
-      results?.trackerData?.league
-
-    if (!league || Array.isArray(league) || typeof league !== 'object') {
-      return null
-    }
-
     return (
-      league[starter] ||
-      league[`${game}@${starter}`] ||
-      league[game]?.[starter] ||
-      league[game] ||
-      league
+      gameData?.__randomizer?.results || gameData?.__randomizer?.extractedData
     )
   }
 
   setContext('game', {
-    getLeague: (...args) => {
-      const randomizedLeague = readRandomizedLeague(...args)
-      if (randomizedLeague) return Promise.resolve(randomizedLeague)
+    getLeague: async (game, starter) => {
+      const results = readRandomizerResults()
+      const randomizedLeague = selectRandomizedLeague(results, game, starter)
 
-      return fetchLeague(...args).catch(err => {
+      return fetchLeague(game, starter).then((staticLeague) => {
+        if (!results) return staticLeague
+        return mergeRandomizedLeague(staticLeague, results, { game, starter })
+      }).catch(err => {
         console.error('[getLeague]', err)
-        return []
+        return randomizedLeague || []
       })
     },
     getAllPkmn: () => fetchData().then((res) => Object.values(res.aliasMap)).catch(err => {

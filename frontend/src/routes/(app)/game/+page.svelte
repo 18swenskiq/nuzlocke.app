@@ -14,7 +14,7 @@
 
   import deferStyles from '$lib/utils/defer-styles'
   import debounce from '$lib/utils/debounce'
-  import { normalizeRandomizerResults } from '$lib/randomizer/locations'
+  import { mergeRandomizerRouteData, normalizeRandomizerResults } from '$lib/randomizer/locations'
 
   import { Expanded as Games } from '$lib/data/games.js'
   import {
@@ -72,22 +72,12 @@
     return route
   }
 
-  const readRandomizedRoute = (data) => {
+  const readRandomizerResults = (data) => {
     const randomizer = data?.__randomizer
-    const results = normalizeRandomizerResults(
-      randomizer?.results || randomizer?.extractedData,
-      gameKey
-    )
-    const topLevelRoute = randomizer?.route
-      ? normalizeRandomizerResults({ route: randomizer.route }, gameKey)?.route
-      : null
-    return (
-      topLevelRoute ||
-      results?.route ||
-      results?.routes ||
-      results?.tracker?.route ||
-      results?.trackerData?.route
-    )
+    const results = randomizer?.results || randomizer?.extractedData
+    if (!results && !randomizer?.route) return null
+
+    return randomizer?.route ? { ...(results || {}), route: randomizer.route } : results
   }
 
   onMount(() => {
@@ -124,13 +114,32 @@
         gameData = initialGameData || {}
 
         let setupFinished = false
-        const randomizedRoute = readRandomizedRoute(gameData)
+        const randomizerResults = readRandomizerResults(gameData)
 
-        if (randomizedRoute?.length) {
-          route = randomizedRoute
-          setupFinished = true
-          console.timeEnd('setup')
-          resolve(route)
+        if (randomizerResults) {
+          fetchRoute(Games[key].pid).then((baseRoute) => {
+            route = mergeRandomizerRouteData(baseRoute, randomizerResults, baseRoute)
+            setupFinished = true
+            console.timeEnd('setup')
+            resolve(route)
+          }).catch((err) => {
+            const normalizedFallback = normalizeRandomizerResults(randomizerResults)
+            const fallbackRoute =
+              normalizedFallback?.route ||
+              normalizedFallback?.routes ||
+              normalizedFallback?.tracker?.route ||
+              normalizedFallback?.trackerData?.route
+            if (fallbackRoute?.length) {
+              route = fallbackRoute
+              setupFinished = true
+              console.timeEnd('setup')
+              resolve(route)
+              return
+            }
+            setupFinished = true
+            console.error('[setup] fetchRoute failed:', err)
+            reject(err)
+          })
         } else {
           fetchRoute(Games[key].pid).then((r) => {
             setupFinished = true
