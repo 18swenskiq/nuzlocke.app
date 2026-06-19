@@ -269,6 +269,7 @@
           bind:this={routeEl}
           className="-mt-8 sm:mt-0"
           game={{ data: gameData, store: gameStore, key: gameKey }}
+          forceEncounterSuggestions={!!gameData?.__randomizer}
           progress={latestnav(route, gameData).id}
         />
       </main>

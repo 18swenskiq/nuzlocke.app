@@ -39,7 +39,8 @@
     filters,
     search,
     progress = '',
-    className = ''
+    className = '',
+    forceEncounterSuggestions = false
   const { store, key, data } = game
 
   let starter = data.__starter || 'fire'
@@ -133,6 +134,7 @@
           {id}
           {store}
           encounters={p.encounters}
+          {forceEncounterSuggestions}
           type="starter"
           location="Starter"
           locationName="Starter"
@@ -165,6 +167,7 @@
           infolink={toDbLocation(key, p.name)}
           location={p.name}
           encounters={p.encounters}
+          {forceEncounterSuggestions}
           on:hide={onhidelocation}
           on:new={onnewlocation}
         />

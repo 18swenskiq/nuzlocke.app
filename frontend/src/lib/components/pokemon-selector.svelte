@@ -4,7 +4,8 @@
     location,
     locationName = '',
     type = '',
-    infolink = ''
+    infolink = '',
+    forceEncounterSuggestions = false
 
   import { nonnull, equal as oEqual } from '$utils/obj'
 
@@ -318,7 +319,11 @@
               />
             </button>
           {:else}
-            {@const fetchSearch = (search && search !== selected) || !suggest}
+            {@const hasEncounterSuggestions = !!(encounters || []).length}
+            {@const fetchSearch =
+              !hasEncounterSuggestions ||
+              (!forceEncounterSuggestions &&
+                ((search && search !== selected) || !suggest))}
 
             <AutoCompleteV2
               inset={selected ? true : '2.4em'}
