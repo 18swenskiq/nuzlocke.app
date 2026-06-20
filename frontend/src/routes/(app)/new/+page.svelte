@@ -39,6 +39,7 @@
     randomizerSettingsDefault
   } from '$lib/randomizer/options'
   import { normalizeRandomizerResults } from '$lib/randomizer/locations'
+  import { compactRandomizerManifest } from '$lib/randomizer/save-format'
   import {
     describeRomIdentity,
     resolveTrackerGameFromRom
@@ -348,10 +349,10 @@
     const rawResults = result?.extractedData || result?.results || null
     const results = normalizeRandomizerResults(rawResults, manifest.game?.key)
 
-    return {
-      ...manifest,
-      status: 'randomized',
-      settings: {
+      return compactRandomizerManifest({
+        ...manifest,
+        status: 'randomized',
+        settings: {
         ...manifest.settings,
         string:
           result?.settingsString ||
@@ -364,11 +365,11 @@
         ...compactOutputMetadata(result?.output),
         saved: savedOutput
       },
-      log: result?.log || null,
-      checkValue: result?.checkValue ?? result?.check_value ?? null,
-      randomized: +new Date()
+        log: result?.log || null,
+        checkValue: result?.checkValue ?? result?.check_value ?? null,
+        randomized: +new Date()
+      })
     }
-  }
 
   const compactOutputMetadata = (output = {}) => {
     const metadata = { ...(output || {}) }
@@ -385,11 +386,13 @@
     ...randomizer,
     results: randomizer.results
       ? {
-          extracted: true,
-          routeCount: randomizer.results.route?.length || randomizer.results.routes?.length || null,
-          trainerCount:
-            Object.keys(randomizer.results.league || randomizer.results.trainers || {}).length || null
-        }
+            extracted: true,
+            routeCount: randomizer.results.route?.length || randomizer.results.routes?.length || null,
+            trainerCount:
+              randomizer.results.trainers?.important?.length ||
+              Object.keys(randomizer.results.league || randomizer.results.trainers || {}).length ||
+              null
+          }
       : null,
     log: randomizer.log ? { present: true } : null
   })

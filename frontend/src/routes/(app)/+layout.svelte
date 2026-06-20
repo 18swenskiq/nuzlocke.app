@@ -10,6 +10,7 @@
 
   import { fetchData, fetchLeague } from '$utils/fetchers'
   import { normalise } from '$utils/string'
+  import { hydrateRandomizerResults } from '$lib/randomizer/save-format'
   import { mergeRandomizedLeague, selectRandomizedLeague } from '$lib/randomizer/trainers'
 
   import Modal from 'svelte-simple-modal'
@@ -32,7 +33,7 @@
     if (!browser) return null
 
     const [gameData] = readdata()
-    return (
+    return hydrateRandomizerResults(
       gameData?.__randomizer?.results || gameData?.__randomizer?.extractedData
     )
   }

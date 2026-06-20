@@ -3,6 +3,7 @@ import { browser } from '$app/environment'
 import { writable } from 'svelte/store'
 
 import { NuzlockeGroups } from '$lib/data/states'
+import { compactGameDataString } from '$lib/randomizer/save-format'
 import { toObj } from '$lib/utils/obj'
 import { uuid } from '$lib/utils/uuid'
 
@@ -101,7 +102,7 @@ export const createGame =
         randomizer: meta.randomizer
       })
 
-      localStorage.setItem(IDS.game(id), initData)
+      localStorage.setItem(IDS.game(id), compactGameDataString(initData))
       activeGame.set(id)
 
       console.log(`Creating new game for ${name} ${game}`)
@@ -158,7 +159,7 @@ export const getGame = (id) =>
     (val) => {
       if (!browser) return
       if (!val) return
-      localStorage.setItem(IDS.game(id), val)
+      localStorage.setItem(IDS.game(id), compactGameDataString(val))
     },
     {}
   )

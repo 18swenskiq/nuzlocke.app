@@ -1,7 +1,9 @@
+import { compactGameData } from '$lib/randomizer/save-format'
+
 export const toSaveFile = (save, gameData = {}) =>
   JSON.stringify({
     __meta: save,
-    ...(typeof gameData === 'string' ? JSON.parse(gameData || '{}') : gameData)
+    ...compactGameData(gameData)
   })
 
 export const parseSaveFile = (payload) => {

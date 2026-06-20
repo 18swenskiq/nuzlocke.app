@@ -15,6 +15,7 @@
   import deferStyles from '$lib/utils/defer-styles'
   import debounce from '$lib/utils/debounce'
   import { mergeRandomizerRouteData, normalizeRandomizerResults } from '$lib/randomizer/locations'
+  import { hydrateRandomizerResults } from '$lib/randomizer/save-format'
 
   import { Expanded as Games } from '$lib/data/games.js'
   import {
@@ -74,7 +75,9 @@
 
   const readRandomizerResults = (data) => {
     const randomizer = data?.__randomizer
-    const results = randomizer?.results || randomizer?.extractedData
+    const results = hydrateRandomizerResults(
+      randomizer?.results || randomizer?.extractedData
+    )
     if (!results && !randomizer?.route) return null
 
     return randomizer?.route ? { ...(results || {}), route: randomizer.route } : results
