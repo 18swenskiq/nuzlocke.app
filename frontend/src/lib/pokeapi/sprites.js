@@ -87,6 +87,38 @@ const GAME_VERSION_PREFERENCES = {
   sh: [['generation-viii', 'icons']]
 }
 
+const GENERATION_VERSION_FALLBACKS = {
+  'generation-i': [
+    ['generation-i', 'red-blue'],
+    ['generation-i', 'yellow']
+  ],
+  'generation-ii': [
+    ['generation-ii', 'gold'],
+    ['generation-ii', 'silver'],
+    ['generation-ii', 'crystal']
+  ],
+  'generation-iii': [
+    ['generation-iii', 'emerald'],
+    ['generation-iii', 'ruby-sapphire'],
+    ['generation-iii', 'firered-leafgreen']
+  ],
+  'generation-iv': [
+    ['generation-iv', 'platinum'],
+    ['generation-iv', 'diamond-pearl'],
+    ['generation-iv', 'heartgold-soulsilver']
+  ],
+  'generation-v': [['generation-v', 'black-white']],
+  'generation-vi': [
+    ['generation-vi', 'x-y'],
+    ['generation-vi', 'omegaruby-alphasapphire']
+  ],
+  'generation-vii': [
+    ['generation-vii', 'ultra-sun-ultra-moon'],
+    ['generation-vii', 'sun-moon']
+  ],
+  'generation-viii': [['generation-viii', 'icons']]
+}
+
 export const pokemonSpriteKey = (pokemon = {}, index = 0) =>
   [
     pokemon.name,
@@ -182,20 +214,34 @@ const pokemonIdentifiers = (pokemon = {}) =>
 
 const preferredVersionPaths = (game) => {
   const key = gameKey(game)
-  return uniquePairs([...(GAME_VERSION_PREFERENCES[key] || []), ...fallbackPreferencesForGen(game)])
+  const direct = GAME_VERSION_PREFERENCES[key] || []
+  const generation = pokeApiGeneration(game, direct)
+
+  if (!generation) {
+    return uniquePairs(direct)
+  }
+
+  const sameGeneration = direct.filter(([candidate]) => candidate === generation)
+  const crossGeneration = direct.filter(([candidate]) => candidate !== generation)
+
+  return uniquePairs([
+    ...sameGeneration,
+    ...(GENERATION_VERSION_FALLBACKS[generation] || []),
+    ...crossGeneration
+  ])
 }
 
-const fallbackPreferencesForGen = (game) => {
+const pokeApiGeneration = (game, direct = []) => {
   const gen = gameGen(game)
-  if (gen === 'i') return [['generation-i', 'red-blue'], ['generation-i', 'yellow']]
-  if (gen === 'ii') return [['generation-ii', 'gold'], ['generation-ii', 'silver'], ['generation-ii', 'crystal']]
-  if (gen === 'iii') return [['generation-iii', 'emerald'], ['generation-iii', 'ruby-sapphire']]
-  if (gen === 'iv') return [['generation-iv', 'platinum'], ['generation-iv', 'diamond-pearl']]
-  if (gen === 'v') return [['generation-v', 'black-white']]
-  if (gen === 'vi') return [['generation-vi', 'x-y'], ['generation-vi', 'omegaruby-alphasapphire']]
-  if (gen === 'vii') return [['generation-vii', 'ultra-sun-ultra-moon'], ['generation-vii', 'sun-moon']]
-  if (gen === 'viii') return [['generation-viii', 'icons']]
-  return []
+  if (gen === 'i') return 'generation-i'
+  if (gen === 'ii') return 'generation-ii'
+  if (gen === 'iii') return 'generation-iii'
+  if (gen === 'iv') return 'generation-iv'
+  if (gen === 'v') return 'generation-v'
+  if (gen === 'vi') return 'generation-vi'
+  if (gen === 'vii') return 'generation-vii'
+  if (gen === 'viii') return 'generation-viii'
+  return direct[0]?.[0] || null
 }
 
 const readSprite = (sprites, generation, version, spriteKey) =>
