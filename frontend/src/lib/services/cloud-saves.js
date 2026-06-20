@@ -37,6 +37,7 @@ export const initCloudSync = () => {
         if (session.status === 'authenticated') {
           startForUser(session.user?.sub).catch((error) => {
             console.error('[cloud-sync] Unable to start cloud sync', error)
+            activeUserId = null
             setError('Unable to sync cloud saves')
           })
           return
@@ -76,17 +77,29 @@ const startForUser = async (userId) => {
 
   const localSaves = readLocalSaves()
   const remoteSaves = await fetchRemoteSaves()
+  const { records, uploads } = mergeSaveRecords(localSaves, remoteSaves)
 
-  if (remoteSaves.length) {
-    hydrateLocalSaves(remoteSaves)
-  } else if (localSaves.length) {
-    await Promise.all(
-      localSaves.map(({ save, data }) => uploadSave(save, JSON.stringify(data)))
+  applyLocalSaves(records)
+
+  let uploadFailed = false
+  if (uploads.length) {
+    const results = await Promise.allSettled(
+      uploads.map(({ save, data }) => uploadSave(save, JSON.stringify(data || {})))
     )
+    uploadFailed = results.some((result) => result.status === 'rejected')
+    for (const result of results) {
+      if (result.status === 'rejected') {
+        console.error('[cloud-sync] Unable to upload local save during merge', result.reason)
+      }
+    }
   }
 
   startWatchers()
-  setSynced()
+  if (uploadFailed) {
+    setError('Some local saves could not sync')
+  } else {
+    setSynced()
+  }
 }
 
 const startWatchers = () => {
@@ -183,26 +196,94 @@ const fetchRemoteSaves = async () => {
   return saves.filter((item) => item.save?.id)
 }
 
-const hydrateLocalSaves = (remoteSaves) => {
+const applyLocalSaves = (records) => {
   paused = true
 
-  const saves = remoteSaves.map(({ save }) => save)
-  const firstSave = saves[0]
+  const saves = records.map(({ save }) => save)
 
-  for (const { save, data } of remoteSaves) {
+  for (const { save, data } of records) {
     const payload = JSON.stringify(data || {})
     window.localStorage.setItem(IDS.game(save.id), payload)
     getGameStore(save.id).set(payload)
   }
 
-  savedGames.set(saves.map(format).join(','))
+  const serializedSaves = saves.map(format).join(',')
+  window.localStorage.setItem(IDS.saves, serializedSaves)
+  savedGames.set(serializedSaves)
 
   const currentActive = window.localStorage.getItem(IDS.active)
-  if (!currentActive || !saves.some((save) => save.id === currentActive)) {
-    activeGame.set(firstSave?.id || '')
+  if (currentActive && saves.some((save) => save.id === currentActive)) {
+    paused = false
+    return
+  }
+
+  const fallbackSave = saves
+    .slice()
+    .sort((a, b) => saveTimestamp(b) - saveTimestamp(a))[0]
+  if (fallbackSave?.id) {
+    activeGame.set(fallbackSave.id)
+  } else {
+    window.localStorage.removeItem(IDS.active)
+    activeGame.set('')
   }
 
   paused = false
+}
+
+const mergeSaveRecords = (localRecords, remoteRecords) => {
+  const localById = new Map(localRecords.map((record) => [record.save.id, record]))
+  const remoteById = new Map(remoteRecords.map((record) => [record.save.id, record]))
+  const ids = [
+    ...localRecords.map(({ save }) => save.id),
+    ...remoteRecords.map(({ save }) => save.id).filter((id) => !localById.has(id))
+  ]
+
+  const records = []
+  const uploads = []
+
+  for (const id of ids) {
+    const local = localById.get(id)
+    const remote = remoteById.get(id)
+
+    if (!local && remote) {
+      records.push(remote)
+      continue
+    }
+
+    if (local && !remote) {
+      records.push(local)
+      uploads.push(local)
+      continue
+    }
+
+    const localTime = saveTimestamp(local.save)
+    const remoteTime = saveTimestamp(remote.save)
+    const localWins = localTime >= remoteTime
+    const winner = localWins ? local : remote
+
+    records.push(winner)
+
+    if (localWins && recordsDiffer(local, remote)) {
+      uploads.push(local)
+    }
+  }
+
+  return { records, uploads }
+}
+
+const saveTimestamp = (save = {}) => Number(save.updated || save.created || 0)
+
+const recordsDiffer = (left, right) =>
+  stableJson({ save: left?.save || null, data: left?.data || null }) !==
+  stableJson({ save: right?.save || null, data: right?.data || null })
+
+const stableJson = (value) => {
+  if (!value || typeof value !== 'object') return JSON.stringify(value)
+  if (Array.isArray(value)) return `[${value.map(stableJson).join(',')}]`
+  return `{${Object.keys(value)
+    .sort()
+    .map((key) => `${JSON.stringify(key)}:${stableJson(value[key])}`)
+    .join(',')}}`
 }
 
 const readLocalSaves = () => {
@@ -254,14 +335,25 @@ const deleteRemoteSave = async (id) => {
 }
 
 const apiFetch = async (path, options = {}) => {
-  const token = await getAuthToken()
-  const res = await fetch(`${getApiBaseUrl()}${path}`, {
+  let token = await getAuthToken()
+  let res = await fetch(`${getApiBaseUrl()}${path}`, {
     ...options,
     headers: {
       ...(options.headers || {}),
       Authorization: `Bearer ${token}`
     }
   })
+
+  if (res.status === 401) {
+    token = await getAuthToken({ forceRefresh: true })
+    res = await fetch(`${getApiBaseUrl()}${path}`, {
+      ...options,
+      headers: {
+        ...(options.headers || {}),
+        Authorization: `Bearer ${token}`
+      }
+    })
+  }
 
   if (!res.ok) {
     throw new Error(`Cloud save request failed: ${res.status}`)

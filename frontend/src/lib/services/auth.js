@@ -159,7 +159,7 @@ export const signOut = async () => {
   window.location.assign(`${config.cognitoDomain}/logout?${params}`)
 }
 
-export const getAuthToken = async () => {
+export const getAuthToken = async ({ forceRefresh = false } = {}) => {
   await initAuth()
 
   const session = get(authSession)
@@ -167,7 +167,7 @@ export const getAuthToken = async () => {
     throw new Error('Not signed in')
   }
 
-  const tokens = await refreshIfNeeded(session.tokens)
+  const tokens = await refreshIfNeeded(session.tokens, { force: forceRefresh })
   if (tokens !== session.tokens) {
     setAuthenticated(tokens)
   }
@@ -198,10 +198,14 @@ const requestTokens = async (params) => {
   }
 }
 
-const refreshIfNeeded = async (tokens) => {
-  if (!tokens?.refresh_token || Date.now() < tokens.expires_at - TOKEN_REFRESH_SKEW_MS) {
+const refreshIfNeeded = async (tokens, { force = false } = {}) => {
+  if (
+    !force &&
+    (!tokens?.refresh_token || Date.now() < tokens.expires_at - TOKEN_REFRESH_SKEW_MS)
+  ) {
     return tokens
   }
+  if (!tokens?.refresh_token) return tokens
 
   const config = await loadAuthConfig()
   const refreshed = await requestTokens(
