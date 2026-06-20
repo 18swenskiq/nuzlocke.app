@@ -108,6 +108,7 @@
                 src={img}
                 alt="Credit to {name}"
                 className="gap-x-6 inline-block"
+                formats={['png']}
               />
             </div>
           {/if}
@@ -138,6 +139,7 @@
                 alt={'Credit to ' + name}
                 className="gap-x-6 inline-block"
                 aspect="192x96"
+                formats={['png']}
               />
             </div>
           {/if}

@@ -1,19 +1,67 @@
 <script>
-  export let src, alt = '', className = '', aspect = '4x4', pixelated = false, role = '', fadeIn = true, loading = 'lazy'
+  export let src,
+    alt = '',
+    className = '',
+    aspect = '4x4',
+    pixelated = false,
+    role = '',
+    fadeIn = true,
+    loading = 'lazy',
+    formats = ['webp', 'png']
+
   import { fade } from 'svelte/transition'
 
   const [width, height] = aspect.split('x')
+
+  let failedSrc = ''
+
+  $: imageFormats =
+    Array.isArray(formats) && formats.length ? formats : ['png']
+  $: fallbackFormat =
+    imageFormats.find((format) => format !== 'webp') || imageFormats[0]
+  $: imageSrc = src ? `${src}.${fallbackFormat}` : ''
+  $: webpSrc =
+    src && imageFormats.includes('webp') ? `${src}.webp` : ''
+  $: if (imageSrc !== failedSrc) failedSrc = ''
 </script>
 
 {#if fadeIn}
 <picture class={$$restProps.class || ''} in:fade>
-  <source onError="this.onerror = null; this.style.display = 'none'" srcset='{src}.webp' type='image/webp' />
-  <img class='{className}' class:pixelated={pixelated} src='{src}.png' {loading} {width} {height} {alt} {role} onerror='this.onerror = null; this.parentNode.children[0].srcset = this.parentNode.children[1].srcset = this.src'/>
+  {#if webpSrc}
+    <source srcset={webpSrc} type="image/webp" />
+  {/if}
+  {#if imageSrc && imageSrc !== failedSrc}
+    <img
+      class={className}
+      class:pixelated={pixelated}
+      src={imageSrc}
+      {loading}
+      {width}
+      {height}
+      {alt}
+      {role}
+      on:error={() => (failedSrc = imageSrc)}
+    />
+  {/if}
 </picture>
 {:else}
 <picture class={$$restProps.class || ''}>
-  <source onError="this.onerror = null; this.style.display = 'none'" srcset='{src}.webp' type='image/webp' />
-  <img class='{className}' class:pixelated={pixelated} src='{src}.png' {loading} {width} {height} {alt} {role} onerror='this.onerror = null; this.parentNode.children[0].srcset = this.parentNode.children[1].srcset = this.src'/>
+  {#if webpSrc}
+    <source srcset={webpSrc} type="image/webp" />
+  {/if}
+  {#if imageSrc && imageSrc !== failedSrc}
+    <img
+      class={className}
+      class:pixelated={pixelated}
+      src={imageSrc}
+      {loading}
+      {width}
+      {height}
+      {alt}
+      {role}
+      on:error={() => (failedSrc = imageSrc)}
+    />
+  {/if}
 </picture>
 {/if}
 

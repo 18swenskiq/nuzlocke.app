@@ -62,6 +62,7 @@
       alt="Tombstone for {nickname} the {pokemon}"
       src="/graves/grave-{graveid}"
       aspect="192x256"
+      formats={['png']}
     />
   {/key}
 

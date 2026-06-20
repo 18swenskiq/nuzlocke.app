@@ -164,6 +164,7 @@
             pixelated
             className="w-18 md:w-36"
             aspect="72x52"
+            formats={['png']}
           />
         </span>
       {/if}
