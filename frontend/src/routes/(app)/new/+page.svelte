@@ -25,8 +25,7 @@
   import {
     detectRandomizerCapabilities,
     getDefaultOutputMode,
-    randomizerOutputModes,
-    summarizeCapabilities
+    randomizerOutputModes
   } from '$lib/randomizer/capabilities'
   import { createRandomizerClient } from '$lib/randomizer/client'
   import {
@@ -102,6 +101,8 @@
     outputMode = 'single-file'
     randomizerSchema = emptyRandomizerSchema()
     randomizerOptions = { seed: '' }
+    useRandomSeed = true
+    activeRandomizerGroup = 0
   }
 
   const selectCreateMode = (mode) => () => {
@@ -131,6 +132,8 @@
   let randomizerClient = null
   let randomizerSchema = emptyRandomizerSchema()
   let randomizerOptions = { seed: '' }
+  let useRandomSeed = true
+  let activeRandomizerGroup = 0
 
   onMount(() => {
     randomizerCapabilities = detectRandomizerCapabilities()
@@ -155,6 +158,7 @@
     selected = null
     randomizerSchema = emptyRandomizerSchema()
     randomizerOptions = { seed: randomizerOptions.seed || '' }
+    activeRandomizerGroup = 0
     romError = ''
 
     if (!file) return
@@ -193,6 +197,7 @@
         ...randomizerSchema.defaults,
         seed: randomizerOptions.seed || randomizerSchema.defaults.seed || ''
       }
+      activeRandomizerGroup = 0
     } catch (error) {
       console.warn('[randomizer:inspect]', {
         code: error?.code,
@@ -299,7 +304,7 @@
 
   const createRandomizedRun = async (gameKey) => {
     if (!romFile) {
-      throw Object.assign(new Error('Upload a ROM before creating a randomized run'), {
+      throw Object.assign(new Error('Select a ROM before creating a randomized run'), {
         code: 'ROM_REQUIRED'
       })
     }
@@ -310,11 +315,12 @@
     }
 
     const manifest = createRandomizerManifest(gameKey)
+    const settings = effectiveRandomizerOptions()
     const result = await randomizerClient.randomize({
       rom: romFile,
       update: updateFile,
-      settings: randomizerOptions,
-      seed: randomizerOptions.seed,
+      settings,
+      seed: settings.seed,
       outputMode
     })
     const savedOutput = await persistRandomizerOutput(result)
@@ -328,10 +334,15 @@
       game: selectedGame,
       gameKey,
       capabilities: randomizerCapabilities,
-      options: randomizerOptions,
+      options: effectiveRandomizerOptions(),
       outputMode,
       rom: romInfo
     })
+
+  const effectiveRandomizerOptions = () => ({
+    ...randomizerOptions,
+    seed: useRandomSeed ? '' : String(randomizerOptions.seed || '').trim()
+  })
 
   const completeRandomizerManifest = (manifest, result, savedOutput) => {
     const rawResults = result?.extractedData || result?.results || null
@@ -450,7 +461,7 @@
       return 'The UPR-ZX browser runtime is present, but the JavaScript binding is not wired yet, so the run was not created.'
     }
     if (error?.code === 'ROM_REQUIRED') {
-      return 'Upload a ROM before creating a randomized run.'
+      return 'Select a ROM before creating a randomized run.'
     }
     if (error?.code === 'UPRZX_UNSUPPORTED_ROM') {
       return 'UPR-ZX could not identify this ROM.'
@@ -496,6 +507,15 @@
   }))
   $: selectedGame = validGames[selected]
   $: randomizeRun = createMode === 'randomized'
+  $: randomizerGroups = randomizerSchema.groups || []
+  $: if (activeRandomizerGroup >= randomizerGroups.length) {
+    activeRandomizerGroup = 0
+  }
+  $: activeRandomizerOptionGroup = randomizerGroups[activeRandomizerGroup]
+  $: randomizerGroupTabs = randomizerGroups.map((group, index) => ({
+    label: group.name,
+    val: index
+  }))
   $: is3dsRom = ['3ds', 'cia', 'cxi', 'cci'].includes(romInfo?.extension)
   $: availableOutputModes = (
     randomizerCapabilities?.outputModes || randomizerOutputModes
@@ -509,7 +529,10 @@
     !gameName.length ||
     randomizingRun ||
     (randomizeRun
-      ? !selected || !romInfo || inspectingRom
+      ? !selected ||
+        !romInfo ||
+        inspectingRom ||
+        (!useRandomSeed && !String(randomizerOptions.seed || '').trim())
       : !selected)
 </script>
 
@@ -690,29 +713,29 @@
         </Button>
       </div>
 
-      <p class="text-sm leading-5 opacity-70">
-        ROM bytes stay local in this browser.
-        {#if randomizerCapabilities}
-          {summarizeCapabilities(randomizerCapabilities)}.
-        {/if}
-      </p>
-
       <section
         class="grid gap-5 rounded-lg border-2 border-gray-200 bg-gray-50 p-4 text-gray-800 dark:border-gray-700 dark:bg-gray-900 dark:text-gray-200"
       >
-        <div class="flex flex-col gap-3 md:flex-row md:items-center">
-          <label
-            class="inline-flex h-10 cursor-pointer items-center justify-center gap-2 rounded-lg border-2 border-gray-700 bg-gray-100 px-4 font-bold transition hover:border-orange-500 hover:text-orange-500 dark:border-gray-200 dark:bg-gray-900 dark:hover:border-orange-400 dark:hover:text-orange-400"
-          >
-            <Icon inline={true} icon={CloudUpload} class="fill-current" />
-            Upload ROM
-            <input
-              class="sr-only"
-              type="file"
-              accept={romAccept}
-              on:change={handleRomUpload}
-            />
-          </label>
+        <div class="flex flex-col gap-4 md:flex-row md:items-start">
+          <div class="grid gap-2 md:max-w-xs">
+            <label
+              class="inline-flex h-10 cursor-pointer items-center justify-center gap-2 rounded-lg border-2 border-gray-700 bg-gray-100 px-4 font-bold transition hover:border-orange-500 hover:text-orange-500 dark:border-gray-200 dark:bg-gray-900 dark:hover:border-orange-400 dark:hover:text-orange-400"
+            >
+              <Icon inline={true} icon={File} class="fill-current" />
+              Select ROM
+              <input
+                class="sr-only"
+                type="file"
+                accept={romAccept}
+                on:change={handleRomUpload}
+              />
+            </label>
+
+            <p class="text-xs leading-4 opacity-70">
+              ROM is never uploaded to the internet. Randomization happens
+              entirely in-browser.
+            </p>
+          </div>
 
           {#if romInfo}
             <span class="text-sm leading-5">
@@ -739,22 +762,37 @@
 
         {#if !romInfo}
           <p class="text-sm leading-5 opacity-70">
-            Upload a clean ROM recognized by UPR-ZX to load the supported
+            Select a clean ROM recognized by UPR-ZX to load the supported
             randomizer options for that game.
           </p>
         {:else}
-          <div class="grid gap-4 md:grid-cols-[14rem_1fr]">
-            <Input
-              rounded
-              placeholder="Seed"
-              maxlength={32}
-              bind:value={randomizerOptions.seed}
-            />
+          <div class="grid gap-3">
+            <label
+              class="inline-flex h-10 w-fit items-center gap-2 rounded-lg border-2 border-gray-200 bg-[var(--input-bg)] px-3 text-xs font-bold uppercase text-gray-800 transition dark:border-gray-600 dark:text-gray-100"
+            >
+              <input
+                type="checkbox"
+                class="h-4 w-4 accent-orange-500"
+                bind:checked={useRandomSeed}
+              />
+              <span>Use Random Seed</span>
+            </label>
 
-            <p class="self-center text-xs leading-5 opacity-70">
-              The tracker stores the selected options and ROM fingerprint with the
-              run.
-            </p>
+            {#if !useRandomSeed}
+              <div class="grid gap-1 md:max-w-sm">
+                <Input
+                  rounded
+                  placeholder="Seed"
+                  maxlength={32}
+                  bind:value={randomizerOptions.seed}
+                />
+                {#if !String(randomizerOptions.seed || '').trim()}
+                  <span class="text-xs font-bold text-red-500">
+                    Enter a seed or use a random seed.
+                  </span>
+                {/if}
+              </div>
+            {/if}
           </div>
 
           {#if is3dsRom}
@@ -797,57 +835,71 @@
             </div>
           {/if}
 
-          <div class="grid gap-4 md:grid-cols-2">
-            {#each randomizerSchema.groups as group}
-              <fieldset class="grid gap-3 border-t-2 border-gray-200 pt-3 dark:border-gray-700">
-                <legend class="pr-3 font-bold">{group.name}</legend>
+          {#if randomizerGroups.length}
+            <div class="grid gap-4">
+              <Tabs
+                name="randomizer-options"
+                className="!w-full border-b-2 border-gray-200 pb-1 dark:border-gray-700"
+                labelClassName="text-xs font-bold uppercase"
+                tabs={randomizerGroupTabs}
+                bind:active={activeRandomizerGroup}
+              />
 
-                {#each group.options as option}
-                  {#if option.type === 'checkbox'}
-                    <label
-                      class="inline-flex h-10 items-center gap-2 rounded-lg border-2 border-gray-200 bg-[var(--input-bg)] px-3 text-xs font-bold uppercase text-gray-800 transition dark:border-gray-600 dark:text-gray-100"
-                      class:opacity-40={option.disabled}
-                    >
-                      <input
-                        type="checkbox"
-                        class="h-4 w-4 accent-orange-500"
-                        checked={!!randomizerOptions[option.id]}
-                        disabled={option.disabled}
-                        on:change={setRandomizerOption(option.id, option.type)}
-                      />
-                      <span>{option.label}</span>
-                    </label>
-                  {:else if option.type === 'number'}
-                    <label class="grid gap-1 text-xs font-bold uppercase">
-                      {option.label}
-                      <input
-                        type="number"
-                        class="h-10 rounded-lg border-2 border-gray-200 bg-[var(--input-bg)] px-3 text-xs normal-case tracking-normal text-gray-800 shadow-sm ring-2 ring-transparent transition-colors focus:border-gray-700 focus:outline-none disabled:cursor-default disabled:opacity-40 dark:border-gray-600 dark:text-gray-100 dark:focus:border-gray-200"
-                        min={option.min}
-                        max={option.max}
-                        step={option.step || 1}
-                        value={randomizerOptions[option.id] ?? option.default ?? 0}
-                        disabled={option.disabled}
-                        on:input={setRandomizerOption(option.id, option.type)}
-                      />
-                    </label>
-                  {:else}
-                    <div class="grid gap-1 text-xs font-bold uppercase">
-                      <span>{option.label}</span>
-                      <Select
-                        rounded
-                        name={option.id}
-                        value={String(randomizerOptions[option.id] ?? option.default ?? '')}
-                        options={choicesFor(option)}
-                        disabled={option.disabled}
-                        on:change={setRandomizerOption(option.id, option.type)}
-                      />
-                    </div>
-                  {/if}
-                {/each}
-              </fieldset>
-            {/each}
-          </div>
+              {#if activeRandomizerOptionGroup}
+                <fieldset class="grid gap-3">
+                  <legend class="sr-only">
+                    {activeRandomizerOptionGroup.name}
+                  </legend>
+
+                  <div class="grid gap-4 md:grid-cols-2">
+                    {#each activeRandomizerOptionGroup.options as option}
+                      {#if option.type === 'checkbox'}
+                        <label
+                          class="inline-flex h-10 items-center gap-2 rounded-lg border-2 border-gray-200 bg-[var(--input-bg)] px-3 text-xs font-bold uppercase text-gray-800 transition dark:border-gray-600 dark:text-gray-100"
+                          class:opacity-40={option.disabled}
+                        >
+                          <input
+                            type="checkbox"
+                            class="h-4 w-4 accent-orange-500"
+                            checked={!!randomizerOptions[option.id]}
+                            disabled={option.disabled}
+                            on:change={setRandomizerOption(option.id, option.type)}
+                          />
+                          <span>{option.label}</span>
+                        </label>
+                      {:else if option.type === 'number'}
+                        <label class="grid gap-1 text-xs font-bold uppercase">
+                          {option.label}
+                          <input
+                            type="number"
+                            class="h-10 rounded-lg border-2 border-gray-200 bg-[var(--input-bg)] px-3 text-xs normal-case tracking-normal text-gray-800 shadow-sm ring-2 ring-transparent transition-colors focus:border-gray-700 focus:outline-none disabled:cursor-default disabled:opacity-40 dark:border-gray-600 dark:text-gray-100 dark:focus:border-gray-200"
+                            min={option.min}
+                            max={option.max}
+                            step={option.step || 1}
+                            value={randomizerOptions[option.id] ?? option.default ?? 0}
+                            disabled={option.disabled}
+                            on:input={setRandomizerOption(option.id, option.type)}
+                          />
+                        </label>
+                      {:else}
+                        <div class="grid gap-1 text-xs font-bold uppercase">
+                          <span>{option.label}</span>
+                          <Select
+                            rounded
+                            name={option.id}
+                            value={String(randomizerOptions[option.id] ?? option.default ?? '')}
+                            options={choicesFor(option)}
+                            disabled={option.disabled}
+                            on:change={setRandomizerOption(option.id, option.type)}
+                          />
+                        </div>
+                      {/if}
+                    {/each}
+                  </div>
+                </fieldset>
+              {/if}
+            </div>
+          {/if}
         {/if}
       </section>
     </div>
