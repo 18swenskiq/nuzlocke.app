@@ -349,7 +349,8 @@ export class NuzlockeAppStack extends cdk.Stack {
       distribution,
       distributionPaths: ['/*'],
       memoryLimit: 512,
-      prune: fs.existsSync(assetsPath),
+      // Open clients can still request hashed chunks from the previous release.
+      prune: false,
     });
     deployment.node.addDependency(userPoolDomain);
 

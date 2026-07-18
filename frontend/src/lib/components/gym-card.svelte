@@ -166,6 +166,7 @@
             aspect="72x52"
             fallback="/leaders/trainer-fallback.svg"
             formats={['png']}
+            loading="eager"
           />
         </span>
       {/if}

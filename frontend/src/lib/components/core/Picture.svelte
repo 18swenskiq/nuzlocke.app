@@ -33,48 +33,11 @@
   $: displaySrc = failed && fallback ? fallback : imageSrc
   $: showImage = displaySrc && !(failed && (!fallback || fallbackFailed))
 
-  const markImageFailed = (node) => {
-    if (fallback && node?.getAttribute('src') === fallback) {
+  const handleError = (event) => {
+    if (fallback && event.currentTarget?.getAttribute('src') === fallback) {
       fallbackFailed = true
     } else {
       failed = true
-    }
-  }
-
-  const handleError = (event) => markImageFailed(event.currentTarget)
-
-  const validateImage = (node) => {
-    let validation = 0
-
-    const checkImage = () => {
-      const currentValidation = ++validation
-
-      Promise.resolve().then(() => {
-        if (currentValidation !== validation) return
-
-        const expectedSrc = node.currentSrc || node.src
-        const handleDecodeError = () => {
-          if (currentValidation !== validation) return
-          if ((node.currentSrc || node.src) !== expectedSrc) return
-
-          markImageFailed(node)
-        }
-
-        if (node.complete) {
-          if (node.naturalWidth === 0) handleDecodeError()
-          return
-        }
-
-        const decoding = node.decode?.()
-        decoding?.catch(handleDecodeError)
-      })
-    }
-
-    checkImage()
-
-    return {
-      update: checkImage,
-      destroy: () => validation++
     }
   }
 </script>
@@ -95,7 +58,6 @@
       {alt}
       {role}
       on:error={handleError}
-      use:validateImage={displaySrc}
     />
   {/if}
 </picture>
@@ -115,7 +77,6 @@
       {alt}
       {role}
       on:error={handleError}
-      use:validateImage={displaySrc}
     />
   {/if}
 </picture>
