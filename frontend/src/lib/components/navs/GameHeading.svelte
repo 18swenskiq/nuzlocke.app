@@ -163,7 +163,7 @@
 
     {#if $page.url.pathname !== '/graveyard'}<MiniTeamController />{/if}
 
-    <span class="relative inline-flex items-center gap-x-1">
+    <span class="relative inline-flex flex-shrink-0 items-stretch">
       <CloudSyncIndicator />
       <AuthControl compact />
       <ThemeToggle />
@@ -241,7 +241,7 @@
     @apply ml-4 -mt-4 inline-flex h-12 items-center md:mt-0 md:-ml-2;
   }
   a.link {
-    @apply inline-flex items-center gap-x-1 border-black p-2 px-3 text-sm transition md:p-4 md:text-base;
+    @apply inline-flex items-center gap-x-1 border-black p-2 px-3 text-sm transition md:py-4 md:px-3 md:text-base;
   }
 
   a.link.active {

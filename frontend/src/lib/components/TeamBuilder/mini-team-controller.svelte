@@ -91,7 +91,7 @@
 {#await setup() then}
   <div transition:fade|local={{ delay: 500 }} class="safe-bottom">
     <MiniTeam
-      class="transform max-md:scale-75 md:pl-8 {$$restProps.class || ''}"
+      class="transform max-lg:scale-75 lg:pl-8 {$$restProps.class || ''}"
       iconKey="pokemon"
       on:add={onteamadd}
       on:swap={onteamswap}
@@ -105,7 +105,7 @@
         in:fade={{ duration: 500 }}
         out:fade={{ duration: 200 }}
         class:hidden={seenTeam}
-        class="absolute left-1/2 mb-1 w-full -translate-x-1/2 translate-y-full italic text-gray-500 md:bottom-2 md:block"
+        class="absolute left-1/2 mb-1 w-full -translate-x-1/2 translate-y-full italic text-gray-500 lg:bottom-2 lg:block"
       >
         Drag Pokémon from your box or click add to team
         <span class="relative">
@@ -128,7 +128,7 @@
       title="Clear your team"
       disabled={!mons?.length}
       borderless
-      containerClassName=" rounded-full !border-gray-900 z-50 -translate-x-3/4 md:translate-x-1/2 md:mt-1"
+      containerClassName=" rounded-full !border-gray-900 z-50 -translate-x-3/4 lg:translate-x-1/2 lg:mt-1"
       src={X}
     />
   </div>
@@ -139,9 +139,9 @@
     @apply relative mx-auto flex w-auto items-center text-center;
   }
 
-  @media (max-width: theme('screens.md')) {
+  @media (max-width: 1023px) {
     div {
-      @apply fixed bottom-0 w-full border-t-2 border-gray-200 bg-white/50 pl-6 pt-3 pb-5 backdrop-blur-sm;
+      @apply fixed bottom-0 left-0 right-0 mx-0 w-full border-t-2 border-gray-200 bg-white/50 pl-6 pt-3 pb-5 backdrop-blur-sm;
     }
 
     :global(.dark) div {

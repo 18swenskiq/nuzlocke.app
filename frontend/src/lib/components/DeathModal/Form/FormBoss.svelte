@@ -113,6 +113,7 @@
         pixelated
         className="w-16 md:w-18 translate-x-1/4 float-right"
         aspect="72x52"
+        fallback="/leaders/trainer-fallback.svg"
         formats={['png']}
       />
     {/if}

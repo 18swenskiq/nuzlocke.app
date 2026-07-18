@@ -32,7 +32,8 @@
   import { canonTypes as types } from '$lib/data/types'
   import { stats, StatIconMap, StatLongMap } from '$lib/data/stats'
 
-  import { UNOWN, createImgUrl } from '$utils/rewrites'
+  import { createImgUrl } from '$utils/rewrites'
+  import { loadPokemonSprite, pokemonSpriteKey } from '$utils/pokeapi'
   import { toDb } from '$utils/link'
   import { summarise } from '$utils/badges'
 
@@ -75,6 +76,39 @@
   let ogbox = [],
     box = [],
     Pokemon = {}
+  const fallbackSprite = '/sprite/202.png'
+  let pokemonSprites = {}
+  const pendingPokemonSprites = new Set()
+
+  const cardSprite = (pokemon, shiny) => {
+    if (!pokemon) return fallbackSprite
+    if (pokemon.imgUrl) return createImgUrl(pokemon, { shiny, ext: 'png' })
+
+    return (
+      pokemonSprites[pokemonSpriteKey(pokemon, { shiny })] || fallbackSprite
+    )
+  }
+
+  const loadBoxSprites = (entries, pokemonData) => {
+    entries.forEach((entry) => {
+      const pokemon = pokemonData[entry.pokemon]
+      const shiny = entry.status === 6
+      const key = pokemonSpriteKey(pokemon, { shiny })
+
+      if (!key || pokemon?.imgUrl || pokemonSprites[key])
+        return
+      if (pendingPokemonSprites.has(key)) return
+
+      pendingPokemonSprites.add(key)
+      loadPokemonSprite(pokemon, { shiny })
+        .then((src) => {
+          pokemonSprites = { ...pokemonSprites, [key]: src }
+        })
+        .catch(() => {})
+        .finally(() => pendingPokemonSprites.delete(key))
+    })
+  }
+
   getBox((b) => {
     ogbox = box = b
     getPkmns(box.map((i) => i.pokemon)).then((data) => {
@@ -82,6 +116,8 @@
       loading = false
     })
   })
+
+  $: if (!loading) loadBoxSprites(box, Pokemon)
 
   let type = ''
   let stat = ''
@@ -412,11 +448,8 @@
 
               <PokemonCard
                 {minimal}
-                sprite={createImgUrl(Pokemon[p.pokemon], {
-                  shiny: p.status === 6,
-                  ext: 'png'
-                })}
-                fallback={UNOWN}
+                sprite={cardSprite(Pokemon[p.pokemon], p.status === 6)}
+                fallback={fallbackSprite}
                 maxStat={Math.max(
                   150,
                   ...Object.values(Pokemon[p.pokemon].baseStats)

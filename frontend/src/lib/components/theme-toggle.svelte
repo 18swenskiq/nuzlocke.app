@@ -42,7 +42,7 @@
 </script>
 
 <button
-  class="{className} relative h-full w-10 sm:w-16"
+  class="{className} relative h-full w-10 flex-shrink-0"
   aria-label={$theme === 'dark' ? 'Light mode' : 'Dark mode'}
   on:click={toggleTheme}
 >

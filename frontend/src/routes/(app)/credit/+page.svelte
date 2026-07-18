@@ -108,6 +108,7 @@
                 src={img}
                 alt="Credit to {name}"
                 className="gap-x-6 inline-block"
+                fallback="/leaders/trainer-fallback.svg"
                 formats={['png']}
               />
             </div>
@@ -139,6 +140,7 @@
                 alt={'Credit to ' + name}
                 className="gap-x-6 inline-block"
                 aspect="192x96"
+                fallback="/leaders/trainer-fallback.svg"
                 formats={['png']}
               />
             </div>

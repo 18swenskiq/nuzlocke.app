@@ -24,9 +24,9 @@
       <span />
     {/if}
 
-    <span class="inline-flex items-center gap-x-2">
+    <span class="inline-flex h-12 items-stretch">
       <AuthControl compact />
-      <ThemeToggle className=mt-2 />
+      <ThemeToggle />
     </span>
   </div>
 </nav>

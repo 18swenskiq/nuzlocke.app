@@ -2,7 +2,7 @@
   import Icon from '@iconify/svelte/dist/OfflineIcon.svelte'
 
   import { authSession, signIn, signOut } from '$lib/services/auth'
-  import { Google } from '$icons'
+  import { Google, Logout } from '$icons'
 
   export let compact = false
 
@@ -15,16 +15,27 @@
 </script>
 
 {#if signedIn}
-  <span class:compact class="auth-group">
-    <span class="auth-control signed-in" title="Signed in as {userLabel}">
-      <Icon inline={true} icon={Google} class="fill-current" />
-      <span>{userLabel}</span>
-    </span>
-
-    <button class="auth-control logout" title="Sign out {userLabel}" on:click={logout}>
-      Logout
+  {#if compact}
+    <button
+      class="auth-control compact"
+      title="Sign out {userLabel}"
+      aria-label="Sign out {userLabel}"
+      on:click={logout}
+    >
+      <Icon inline={true} icon={Logout} class="fill-current" />
     </button>
-  </span>
+  {:else}
+    <span class="auth-group">
+      <span class="auth-control signed-in" title="Signed in as {userLabel}">
+        <Icon inline={true} icon={Google} class="fill-current" />
+        <span>{userLabel}</span>
+      </span>
+
+      <button class="auth-control logout" title="Sign out {userLabel}" on:click={logout}>
+        Sign out
+      </button>
+    </span>
+  {/if}
 {:else}
   <button
     class:compact
@@ -62,5 +73,9 @@
   .auth-control.compact,
   .auth-group.compact {
     @apply max-w-none;
+  }
+
+  .auth-control.compact {
+    @apply h-12 w-10 justify-center rounded-none border-0 border-b-2 border-b-transparent px-0 text-base hover:border-b-current;
   }
 </style>

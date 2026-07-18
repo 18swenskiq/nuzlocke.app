@@ -2,6 +2,7 @@
   export let id = 25
 
   import { IMG } from '$utils/rewrites'
+  import { loadPokemonSprite } from '$utils/pokeapi'
 
   import { flip as animflip } from 'svelte/animate'
   import { fly } from 'svelte/transition'
@@ -17,63 +18,13 @@
   const interval = 5000
   const distance = 300
   const fallbackSprite = '/sprite/202.png'
-  const pokeApi = 'https://pokeapi.co/api/v2/pokemon'
-  const spriteCacheKey = 'nuzlocke:pokemon-home-sprites:v1'
 
   let flip = 0
   let src = fallbackSprite
   let carouselActive = false
   let nextSpritePending = false
-  let spriteCache = {}
 
   const randomSpriteId = () => Math.floor(Math.random() * 151) + 1
-
-  const readSpriteCache = () => {
-    try {
-      return JSON.parse(localStorage.getItem(spriteCacheKey) || '{}')
-    } catch {
-      return {}
-    }
-  }
-
-  const writeSpriteCache = () => {
-    try {
-      localStorage.setItem(spriteCacheKey, JSON.stringify(spriteCache))
-    } catch {
-      // Storage can be unavailable in private browsing; in-memory cache still helps.
-    }
-  }
-
-  const fetchSpriteUrl = async (nextId) => {
-    const cached = spriteCache[nextId]
-    if (cached) return cached
-
-    const response = await fetch(`${pokeApi}/${nextId}/`)
-    if (!response.ok) throw new Error(`PokeAPI returned ${response.status}`)
-
-    const pokemon = await response.json()
-    const nextSrc =
-      pokemon?.sprites?.other?.home?.front_default ||
-      pokemon?.sprites?.front_default
-
-    if (!nextSrc) throw new Error(`No sprite found for Pokemon #${nextId}`)
-
-    spriteCache = { ...spriteCache, [nextId]: nextSrc }
-    writeSpriteCache()
-
-    return nextSrc
-  }
-
-  const preloadImage = (nextSrc) =>
-    new Promise((resolve, reject) => {
-      const img = new Image()
-
-      img.onload = () => resolve(nextSrc)
-      img.onerror = reject
-      img.src = nextSrc
-    })
-
-  const loadSprite = async (nextId) => preloadImage(await fetchSpriteUrl(nextId))
 
   const queueNextSprite = async (
     nextId = randomSpriteId(),
@@ -83,7 +34,7 @@
     nextSpritePending = true
 
     try {
-      const nextSrc = await loadSprite(nextId)
+      const nextSrc = await loadPokemonSprite(nextId)
       if (!carouselActive) return
 
       id = nextId
@@ -106,8 +57,6 @@
   ]
 
   onMount(() => {
-    spriteCache = readSpriteCache()
-
     const [data, , savedId, save] = readdata()
     activeId = savedId
     active = save
